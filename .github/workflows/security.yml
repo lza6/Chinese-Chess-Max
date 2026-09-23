@@ -20,7 +20,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
             - name: OSV 依赖漏洞扫描（pnpm + Cargo）
-              uses: google/osv-scanner-action@v1
+              uses: google/osv-scanner-action@v2.6.0
               with:
                   scan-args: |-
                       --lockfile=pnpm-lock.yaml

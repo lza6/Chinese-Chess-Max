@@ -73,7 +73,7 @@ pub fn predict(origin_img: ImageBuffer<Rgba<u8>, Vec<u8>>) -> ort::Result<Vec<De
         input[[0, 2, y as usize, x as usize]] = b as f32 / 255.0;
     }
     let outputs = session().run(inputs!["images" => input.view()]?)?;
-    let output = outputs["output"]
+    let output = outputs["output0"]
         .try_extract_tensor::<f32>()?
         .view()
         .t()
@@ -85,12 +85,12 @@ pub fn predict(origin_img: ImageBuffer<Rgba<u8>, Vec<u8>>) -> ort::Result<Vec<De
         .rows()
         .into_iter()
         .filter_map(|row| {
-            let (class_id, max_prob) = (5..20)
-                .map(|idx| (idx - 5, row[idx]))
+            // YOLOv11 输出契约：4 坐标 + 15 类别（无 objectness），stride=19
+            let (class_id, conf) = (4..19)
+                .map(|idx| (idx - 4, row[idx]))
                 .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
                 .unwrap();
 
-            let conf = row[4] * max_prob;
             if conf < CONFIDENCE_THRESHOLD {
                 None
             } else {

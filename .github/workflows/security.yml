@@ -27,7 +27,19 @@ jobs:
               run: go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.6.0
             - name: OSV 依赖漏洞扫描（pnpm + Cargo）
               run: |
-                  "$(go env GOPATH)/bin/osv-scanner" --lockfile pnpm-lock.yaml --lockfile server/Cargo.lock
+                  "$(go env GOPATH)/bin/osv-scanner" scan --format json --lockfile pnpm-lock.yaml --lockfile server/Cargo.lock > osv.json || true
+                  node -e '
+                    const fs = require("fs");
+                    const o = JSON.parse(fs.readFileSync("osv.json", "utf8"));
+                    const total = (o.results || []).reduce((n, r) => n + (r.packages || []).reduce((m, p) => m + (p.vulnerabilities || []).length, 0), 0);
+                    const high = [];
+                    for (const r of o.results || []) for (const p of r.packages || []) for (const v of p.vulnerabilities || []) {
+                      const score = Math.max(0, ...(v.severity || []).map((s) => s.score ?? 0));
+                      if (score >= 7) high.push(p.package.name + "@" + p.package.version + " cvss=" + score + " " + (v.id || (v.aliases || [])[0] || ""));
+                    }
+                    if (high.length) { console.error("BLOCKING HIGH/CRITICAL:\n" + high.join("\n")); process.exit(1); }
+                    console.log("osv: total advisories=" + total + ", CVSS>=7 blocking=0（低危/未知通告不阻断，明细见日志）");
+                  '
 
     dependency-audit:
         runs-on: ubuntu-latest

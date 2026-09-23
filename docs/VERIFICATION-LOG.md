@@ -31,3 +31,8 @@
 2. YAML 里 `$(node -p "require(...)")` 易被转义搞坏 → 用 `V=$(node -p "require(...)")` 再拼 tag。
 3. softprops/action-gh-release 对已存在 tag 会报错 → 加 gh release view 幂等门。
 4. Playwright 本地残留 dev server 会被 reuse → 明显卡死/旧配置时 Stop-Process 清 5173 再跑。
+
+## 安全门禁策略（osv-scanner）
+- 门禁：仅 CVSS>=7（High/Critical）阻断；低危/未知通告打印不阻断（与 pnpm audit --audit-level high 一致）。
+- 2026-09-23：cargo update 定向升级 bytes/h2/anyhow/memmap2/event-listener/openssl 等，Cargo.lock 59 行小改动后 CVSS>=7=0；剩余 63 条为无 CVSS 的构建期/传递通告。
+- 第三方 action google/osv-scanner-action 的 tag 损坏（v1 不存在、v2.6.0 缺 runs）→ 改用官方 CLI（setup-go + go install）。

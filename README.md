@@ -69,6 +69,13 @@
 
 持续集成与持续交付（CI/CD）配置说明见 [docs/CI-CD.md](./docs/CI-CD.md)。
 
+### 📚 项目文档
+- [SPEC.md](./docs/SPEC.md) 项目规格与验收基线
+- [CONTRACT.md](./docs/CONTRACT.md) 前后端 Tauri 命令/事件契约
+- [SOP.md](./docs/SOP.md) 从零跑通→发布→回滚 Runbook
+- [SCALABILITY-REVIEW.md](./docs/SCALABILITY-REVIEW.md) 可扩展性适用性审查
+- [VERIFICATION-LOG.md](./docs/VERIFICATION-LOG.md) 验证日志/记忆点
+
 ## 🛠 开发计划
 
 - [x] 基础棋盘识别
@@ -85,3 +92,4 @@
 ## 📜 许可声明
 
 本项目基于 MIT License（[LICENSE](./LICENSE)），永久免费开源。
+

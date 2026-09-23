@@ -21,3 +21,7 @@
 1. 人工提供 `libs/large.onnx` → 解锁 cargo 编译 + 出安装包。
 2. 如启用 Web 静态托管：把 `dist/` 一键发到托管 → CDN。
 3. 想加“人机对弈/连线对战”需产品功能拆解（先出 SPEC 再用 spec-kit 流程）。
+
+## 最新：GitHub 线上验证（2026-09-23）
+- CI / Security / Release 三条 workflow 全绿（commit `0d94b5e`）。
+- Security 曾两连红已修复：pnpm.overrides(postcss/nanoid) + cargo 定向升级 + osv 官方 CLI 与 CVSS>=7 门禁 + release 幂等 + windows shell:bash。

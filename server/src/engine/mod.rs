@@ -79,18 +79,52 @@ impl Engine {
             stdout,
             child,
         };
+        // UCI 握手：等 uciok，避免未就绪就 setoption/搜索
+        eng.write_command("uci");
+        eng.wait_until("uciok", "uci 初始化");
         eng.setoption("EvalFile", nnue.display());
         eng.setoption("Sixty Move Rule", false);
+        eng.isready();
         eng
     }
 
+    /// 发送 isready 并等待 readyok（同步引擎就绪）
+    fn isready(&mut self) {
+        self.write_command("isready");
+        self.wait_until("readyok", "isready");
+    }
+
+    /// 读取输出直到出现目标关键字；EOF 时返回 None
+    fn wait_until(&mut self, keyword: &str, ctx: &str) -> Option<bool> {
+        let mut tries = 0u32;
+        loop {
+            match self.read_line() {
+                None => {
+                    tracing::warn!("{}({})：引擎输出 EOF 提前退出", ctx, keyword);
+                    return None;
+                }
+                Some(line) => {
+                    if line.contains(keyword) {
+                        return Some(true);
+                    }
+                    tries += 1;
+                    if tries > 10_000 {
+                        tracing::warn!("{}({})：等待超时（引擎可能卡死）", ctx, keyword);
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+
     pub fn reload(&mut self, libs: &Path, config: &EngineConfig) {
-        self.child.kill().unwrap();
-        self.child.wait().unwrap();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
         *self = Self::new(libs);
         self.set_hash(config.hash);
         self.set_show_wdl(config.show_wdl);
         self.set_threads(config.threads);
+        self.isready();
     }
 
     fn write_command<A: Display>(&mut self, args: A) {
@@ -119,11 +153,25 @@ impl Engine {
         self.write_command(format!("position fen {}", fen))
     }
 
-    fn read_line(&mut self) -> String {
-        let mut line = String::new();
-        self.stdout.read_line(&mut line).unwrap();
-        trace!("line::{}", line);
-        line.trim().to_string()
+    /// 读一行；引擎进程退出(EOF)时返回 None，避免无限空转。
+    /// 引擎横幅可能含非 UTF-8 字节，用 read_until + lossy 转换容忍。
+    fn read_line(&mut self) -> Option<String> {
+        let mut buf: Vec<u8> = Vec::with_capacity(128);
+        match self.stdout.read_until(b'\n', &mut buf) {
+            Ok(0) => {
+                tracing::warn!("engine stdout EOF（引擎可能已退出）");
+                None
+            }
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buf);
+                trace!("line::{}", line.trim_end());
+                Some(line.trim().to_string())
+            }
+            Err(e) => {
+                tracing::warn!("engine read_line error: {}", e);
+                None
+            }
+        }
     }
 
     fn parse_line(&self, line: String, result: &mut QueryResult) {
@@ -171,7 +219,10 @@ impl Engine {
         self.write_command(format!("go depth {} movetime {}", depth, time));
         let mut pre_line = String::new();
         loop {
-            let line = self.read_line();
+            let Some(line) = self.read_line() else {
+                tracing::error!("bestmove: 引擎无响应(EOF)，放弃本次搜索");
+                return String::new();
+            };
             if line.starts_with("bestmove") {
                 trace!("{}", pre_line);
                 break;
@@ -213,7 +264,6 @@ impl Drop for Engine {
 
 #[cfg(test)]
 mod tests {
-    use std::path;
 
     use tracing::Level;
     use tracing::info;
@@ -233,7 +283,7 @@ mod tests {
     async fn test_engine() {
         logger::init_tracer(Level::TRACE, &std::path::PathBuf::from("."));
         let fen = "4k4/9/6r2/9/9/9/9/9/4A4/4K4 w";
-        let libs = path::PathBuf::from("libs");
+        let libs = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../libs/pikafish");
         let mut eng = Engine::new(&libs);
         let cfg = EngineConfig {
             chessdb_enabled: false,

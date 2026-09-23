@@ -64,9 +64,14 @@ impl Config {
                 return config;
             };
 
-            // 解析失败代表配置不兼容, 直接删除后重新使用默认配置，后续考虑增量更新方式
-            std::fs::remove_file(&config_path).unwrap();
-            debug!("remove old config '{}'", config_path.display())
+            // 解析失败代表配置不兼容：备份原文件（保留用户数据），再用默认配置
+            let backup = dir.join("config.json.bak");
+            let _ = std::fs::copy(&config_path, &backup);
+            let _ = std::fs::remove_file(&config_path);
+            tracing::warn!(
+                "配置文件解析失败，已备份至 {} 并重建默认配置",
+                backup.display()
+            )
         }
 
         let config = Config {
@@ -83,9 +88,23 @@ impl Config {
         // 将对象序列化为格式化的JSON字符串
         let json_string = serde_json::to_string_pretty(self).unwrap();
 
-        // 创建一个新文件或打开一个已存在的文件以写入JSON数据
-        let mut file = File::create(path).unwrap();
-        file.write_all(json_string.as_bytes()).unwrap();
+        // 原子写：先写临时文件再替换，避免崩溃/中断导致配置损坏
+        let tmp = path.with_extension("json.tmp");
+        {
+            let mut file = File::create(&tmp).unwrap();
+            file.write_all(json_string.as_bytes()).unwrap();
+            file.sync_all().ok();
+        }
+        match std::fs::rename(&tmp, path) {
+            Ok(()) => {}
+            Err(e) => {
+                // 跨盘/权限等场景 rename 失败时回退直接写
+                tracing::warn!("原子写失败({}), 回退直接写入: {}", e, path.display());
+                let mut file = File::create(path).unwrap();
+                file.write_all(json_string.as_bytes()).unwrap();
+                let _ = std::fs::remove_file(&tmp);
+            }
+        }
     }
 }
 

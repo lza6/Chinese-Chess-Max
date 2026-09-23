@@ -3,7 +3,7 @@ use std::time::Duration;
 use super::QueryResult;
 use super::QueryState;
 
-const URL: &str = "http://www.chessdb.cn/chessdb.php";
+const URL: &str = "https://www.chessdb.cn/chessdb.php";
 const REFER: &str = "https://www.chessdb.cn/query/";
 const AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36";
 const SOURCE_CHESSDB: &str = "云库";
@@ -19,24 +19,40 @@ pub async fn query(fen: &str, timeout: u64) -> QueryResult {
         .await;
     match resp {
         Ok(resp) => {
-            let text = resp.text().await.unwrap();
-            let text = text.strip_suffix('\0').unwrap();
+            let text = match resp.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::warn!("chessdb read body error: {}", e);
+                    records.state = QueryState::ServerInternalError;
+                    return records;
+                }
+            };
+            let text = text.strip_suffix('\0').unwrap_or(&text);
             match text {
                 "" | "unknown" => records.state = QueryState::NotResult,
                 "invalid board" | "checkmate" | "stalemate" => {
                     records.state = QueryState::InvalidBoard
                 }
                 text => {
-                    println!("{}", text);
+                    tracing::debug!("chessdb resp: {}", text);
                     for pair in text.split(',') {
                         let mut parts = pair.split(':');
                         match parts.next().unwrap_or("") {
-                            "score" => records.score = parts.next().unwrap().parse().unwrap_or(0),
-                            "depth" => records.depth = parts.next().unwrap().parse().unwrap_or(0),
+                            "score" => {
+                                if let Some(v) = parts.next() {
+                                    records.score = v.parse().unwrap_or(0);
+                                }
+                            }
+                            "depth" => {
+                                if let Some(v) = parts.next() {
+                                    records.depth = v.parse().unwrap_or(0);
+                                }
+                            }
                             "pv" => {
-                                let pv_text = parts.next().unwrap();
-                                for pv in pv_text.split('|') {
-                                    records.pvs.push(pv.to_string());
+                                if let Some(pv_text) = parts.next() {
+                                    for pv in pv_text.split('|') {
+                                        records.pvs.push(pv.to_string());
+                                    }
                                 }
                             }
                             _ => {}
@@ -48,7 +64,7 @@ pub async fn query(fen: &str, timeout: u64) -> QueryResult {
             }
         }
         Err(e) => {
-            println!("{}", e);
+            tracing::warn!("chessdb query error: {}", e);
             records.state = QueryState::ServerInternalError
         }
     };

@@ -92,10 +92,14 @@ impl AnalysisContext {
         board: [[char; 9]; 10],
     ) -> Option<BoardAnalysisResult> {
         let fen = chess::board_fen(camp, board);
-        let config = SHARED_STATE.get().unwrap().config.read().unwrap();
+        // 先克隆配置再释放读锁：避免引擎搜索期间阻塞 set_engine_* 写锁
+        let config = {
+            let guard = SHARED_STATE.get().unwrap().config.read().unwrap();
+            guard.engine
+        };
         let state = SHARED_STATE.get().unwrap();
         let mut engine = state.engine.lock().unwrap();
-        let result = block_on(engine.search(&fen, &config.engine));
+        let result = block_on(engine.search(&fen, &config));
         result.as_ref()?;
 
         let (expect_move, expect_board) = analyse(&self.app, result.unwrap(), board);
@@ -155,8 +159,11 @@ pub fn analyse(
     mut result: QueryResult,
     board: [[char; 9]; 10],
 ) -> (chess::Changed, [[char; 9]; 10]) {
-    // 引擎结果翻译为中文
-    let best_pv = result.pvs.first().unwrap();
+    // 引擎结果翻译为中文（防御云库返回 Success 但 pv 为空）
+    let Some(best_pv) = result.pvs.first() else {
+        error!("analyse: pvs 为空，跳过本次分析");
+        return (chess::Changed::default(), board);
+    };
     let best_move = chess::board_move_chinese(board, best_pv);
     let expect_board = chess::board_move(board, best_pv);
     let expect_move = chess::Changed::from_pv(best_pv, board);
@@ -390,19 +397,17 @@ fn process_analysis_loop(mut context: AnalysisContext) {
 #[tauri::command]
 pub async fn start_listen(app: AppHandle, target: Window) -> Result<(), String> {
     trace!("start_listen");
-    if SHARED_STATE
-        .get()
-        .unwrap()
-        .listen_thread
-        .try_lock()
-        .is_err()
     {
-        error!("current listen thread is running, please stop it first");
-        return Err("已经在监听中".to_string());
+        let guard = SHARED_STATE.get().unwrap().listen_thread.lock().unwrap();
+        if guard.is_some() {
+            error!("current listen thread is running, please stop it first");
+            return Err("已经在监听中".to_string());
+        }
     }
 
     // 初始化监听窗口模块
-    let mut window = ListenWindow::new(&target, IMAGE_WIDTH, IMAGE_HEIGHT).unwrap(); // 创建窗口实例
+    let mut window = ListenWindow::new(&target, IMAGE_WIDTH, IMAGE_HEIGHT)
+        .ok_or_else(|| "目标窗口已不存在或不可用，请重新选择".to_string())?; // 创建窗口实例
     let image = window.capture();
 
     let image_h = image.height();
@@ -449,7 +454,10 @@ pub fn stop_listen() {
         // 释放锁，停止后台线程
         debug!("释放锁，停止后台线程");
         drop(state);
-        listen_thread.join().unwrap();
+        // 不 join：后台线程在每次轮询开头检测 should_stop（listen_thread 已置 None）
+        // 后会自行退出；引擎搜索最多一个搜索周期内结束，避免停止按钮被永久阻塞。
+        // 注：std::thread 无 join_timeout（nightly 特性），故选择 detach 语义。
+        let _ = listen_thread;
     }
     debug!("stoped");
 }

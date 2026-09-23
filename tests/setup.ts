@@ -8,6 +8,15 @@ declare global {
 }
 
 // jsdom 缺失但在 naive-ui 渲染中需要的浏览器 API
+
+// jsdom 缺少 Element.scrollTo（naive-ui NLog/NScrollbar 依赖），需 polyfill
+if (!Element.prototype.scrollTo) {
+    // @ts-expect-error jsdom 类型未定义 scrollTo
+    Element.prototype.scrollTo = function (_options?: ScrollToOptions | number, _y?: number) {
+        // naive-ui 传 { position, silent }，jsdom 无真实滚动，no-op 即可
+    };
+}
+
 if (!window.matchMedia) {
     window.matchMedia = ((query: string) => ({
         matches: false,

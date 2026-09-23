@@ -63,16 +63,32 @@ const config = ref<EngineConfig>({
 
 const showEngineConfig = ref(false);
 const isEngineRunning = ref(false);
+// 防重复操作：启动/停止中锁按钮
+const isPending = ref(false);
 
 onMounted(async () => {
     await getEngineConfig();
 });
 
-async function copy_fen() {}
+// 复制局面尚未实现：保留按钮占位并明确标注“开发中”，不提供空函数
+// async function copy_fen() { /* TODO: 需后端暴露 board_fen 或前端缓存局面 */ }
 
 async function stopListen() {
-    await invoke("stop_listen");
-    isEngineRunning.value = false;
+    if (isPending.value) return;
+    isPending.value = true;
+    try {
+        await invoke("stop_listen");
+        isEngineRunning.value = false;
+    } catch (e) {
+        console.error("停止监听失败:", e);
+        dialog.error({
+            title: "错误",
+            content: "停止监听失败: " + String(e),
+            positiveText: "确定",
+        });
+    } finally {
+        isPending.value = false;
+    }
 }
 
 interface Window {
@@ -86,6 +102,8 @@ interface Window {
 const dialog = useDialog();
 
 async function startListen() {
+    if (isPending.value) return;
+    isPending.value = true;
     try {
         // 获取窗口列表
         const windows: Window[] = await invoke("list_windows");
@@ -203,9 +221,11 @@ async function startListen() {
                     } catch (error) {
                         dialog.error({
                             title: "错误",
-                            content: "启动监听失败:" + String(error),
+                            content: "启动监听失败: " + String(error),
                             positiveText: "确定",
                         });
+                    } finally {
+                        isPending.value = false;
                     }
                 }
             },
@@ -217,6 +237,8 @@ async function startListen() {
             content: "启动监听失败: " + String(error),
             positiveText: "确定",
         });
+    } finally {
+        isPending.value = false;
     }
 }
 
@@ -281,6 +303,8 @@ async function toggleEngine() {
                                 circle
                                 size="small"
                                 :type="isEngineRunning ? 'error' : 'primary'"
+                                :loading="isPending"
+                                :disabled="isPending"
                                 @click="toggleEngine"
                             >
                                 {{ isEngineRunning ? "停" : "启" }}
@@ -304,14 +328,14 @@ async function toggleEngine() {
                         <template #trigger>
                             <n-button circle size="small" type="success" disabled>识</n-button>
                         </template>
-                        图片识别
+                        图片识别（开发中）
                     </n-tooltip>
 
                     <n-tooltip trigger="hover" placement="bottom">
                         <template #trigger>
-                            <n-button circle size="small" type="warning" disabled @click="copy_fen">复</n-button>
+                            <n-button circle size="small" type="warning" disabled>复</n-button>
                         </template>
-                        复制局面
+                        复制局面（开发中）
                     </n-tooltip>
                 </n-space>
             </n-flex>

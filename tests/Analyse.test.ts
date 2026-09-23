@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
+import { flushPromises } from "@vue/test-utils";
 import Analyse from "../src/components/Analyse.vue";
 import { listeners } from "./mocks/tauri";
 
@@ -8,14 +9,16 @@ vi.mock("@tauri-apps/api/core", () => import("./mocks/tauri"));
 vi.mock("@tauri-apps/api/event", () => import("./mocks/tauri"));
 
 describe("Analyse", () => {
-    it("初始状态显示默认最佳走法", () => {
+    it("初始状态显示默认最佳走法", async () => {
         const wrapper = mount(Analyse);
+        await flushPromises();
         expect(wrapper.text()).toContain("局面分析");
         expect(wrapper.text()).toContain("----");
     });
 
     it("收到 analyse 事件后更新最佳走法与日志", async () => {
         const wrapper = mount(Analyse);
+        await flushPromises();
         const handler = listeners["analyse"]?.at(-1);
         expect(handler).toBeTruthy();
         await handler({
@@ -35,6 +38,7 @@ describe("Analyse", () => {
 
     it("大量事件时日志滚动与裁剪分支被覆盖", async () => {
         const wrapper = mount(Analyse);
+        await flushPromises();
         const handler = listeners["analyse"]?.at(-1);
         expect(handler).toBeTruthy();
         for (let i = 0; i < 130; i++) {

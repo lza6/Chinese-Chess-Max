@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
 import { emit, listen } from "@tauri-apps/api/event";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 
 import "../assets/css/chessboard.css";
 
@@ -94,18 +94,18 @@ const wrappedItems = computed(() => {
     }
 });
 
-listen('mirror', async (event) => {
-    mirror.value = event.payload as boolean;
-})
+function onMirror(event: { payload: boolean }) {
+    mirror.value = event.payload;
+}
 
-listen('position', async (event) => {
-    let pos = event.payload as Position[];
-    await setPiecesOnBoard(pos);
-})
+function onPosition(event: { payload: Position[] }) {
+    void setPiecesOnBoard(event.payload);
+}
 
-listen('move', async (event) => {
-    let change = event.payload as Changed;
-    let token = `piece-${change.piece}`;
+
+function onMove(event: { payload: Changed }) {
+    const change = event.payload;
+    const token = `piece-${change.piece}`;
 
     // 移除 select
     document.querySelectorAll(".b-select").forEach(element => {
@@ -116,7 +116,7 @@ listen('move', async (event) => {
     document.getElementById(change.from)?.firstElementChild?.classList.remove(token);
 
     // 移除目标坐标棋子
-    let ele = document.getElementById(change.to)?.firstElementChild;
+    const ele = document.getElementById(change.to)?.firstElementChild;
     ele?.classList.forEach(cls => {
         if (cls != "piece") {
             ele?.classList.remove(cls)
@@ -125,8 +125,18 @@ listen('move', async (event) => {
 
     // 目标坐标添加棋子
     document.getElementById(change.to)?.firstElementChild?.classList.add(token);
-});
+}
 
+// 统一注册/解绑事件监听，避免重复挂载累积回调
+onMounted(async () => {
+    const unlisteners: Array<() => void> = [];
+    unlisteners.push(await listen('mirror', onMirror));
+    unlisteners.push(await listen('position', onPosition));
+    unlisteners.push(await listen('move', onMove));
+    onUnmounted(() => {
+        for (const un of unlisteners) un();
+    });
+});
 </script>
 
 <template>

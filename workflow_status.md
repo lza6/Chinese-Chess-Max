@@ -33,3 +33,11 @@
 - 新修复 3 项：check-contract 脏变量+错误符号、.gitattributes LF 行尾契约、CI e2e 显式契约步骤；CodeQL v3->v4。
 - 线上 job 级证据 @364e991：CI/Security/Release 全 success；v0.2.0/v0.2.1 Release 携带 dist.zip。
 - 唯一硬阻塞不变：缺 libs/large.onnx（YOLOv8 40-50MB，需用户提供，compile-time include_bytes）。
+
+## 最新：2026-09-24 第三轮终局闭环审计（Orchestrator 主控代理复跑）
+
+- Spec Kit 前置：docs/SPEC-V2.md（增量规范）+ REQUIREMENT-MATRIX.md（需求追踪矩阵）+ SELF-REVIEW.md（反向审判）+ AUDIT-V2.md（4 Agent 综合清单）。
+- 4 并行子代理深度审计（Bacon 前端/Galileo Rust/Heisenberg 工程/Raman 产品）→ 交叉印证缺陷清单。
+- 本地真实解锁 Rust 编译（占位模型）→ cargo check/clippy/test 全绿 10/10；前端全绿 + E2E 真跑。
+- 修复 A/B/C 组 20+ 项（详见 CHANGELOG 0.2.3）。
+- 资源阻塞：large.onnx 真实模型缺失；仓库自带 pikafish 引擎损坏（已工作区替换官方版验证可用，未入库）。

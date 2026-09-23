@@ -1,6 +1,6 @@
 # Chinese-Chess-Max
 
-中国象棋Max版本，支持自动走起自动连线等
+中国象棋Max：屏幕棋盘实时识别 + 引擎分析 + 中文招法建议（开源免费）
 
 ![CI](https://github.com/lza6/Chinese-Chess-Max/actions/workflows/ci.yml/badge.svg)
 ![Security](https://github.com/lza6/Chinese-Chess-Max/actions/workflows/security.yml/badge.svg)
@@ -11,18 +11,24 @@
 
 ## 下载安装
 
-[点击下载](https://github.com/lza6/Chinese-Chess-Max/releases/latest)
+[点击查看 Release](https://github.com/lza6/Chinese-Chess-Max/releases/latest)
 
-## ✨ 功能亮点
+> ⚠️ **当前状态**：Release 提供 **Web 静态构建（dist.zip）**；桌面安装包（MSI/deb）依赖
+> `libs/large.onnx`（YOLOv8 模型）与 onnxruntime 运行时资源，补齐后由 CI 自动产出。
+> 详见 [docs/VERIFICATION-LOG.md](./docs/VERIFICATION-LOG.md) 的“诚实边界”。
 
-- ⚡ **轻量极速**  
-  一键启动，无需繁琐配置，毫秒级别识别与分析，畅享零等待。  
-- 🔒 **安全可靠**  
-  核心模块采用 Rust 开发，确保内存安全与高并发性能。  
-- 🌐 **多平台支持**  
-  深度优化 Windows & macOS，同时兼容 Linux，让你随时随地稳如磐石。  
-- 🚀 **GPU 智能加速**  
-  原生支持 CUDA、DirectML、CoreML 等主流推理框架，全力释放显卡性能。
+## ✨ 功能状态（诚实矩阵）
+
+| 功能 | 状态 | 说明 |
+|---|---|---|
+| ⚡ 屏幕棋盘识别 | ✅ 已实现 | YOLOv8 + ONNX Runtime；模型 `libs/large.onnx` 需本地补齐后才可运行 |
+| 🤖 Pikafish 引擎分析 | ✅ 已实现 | 深度/时间/线程/哈希可配置 |
+| 🀄️ 中文招法展示 | ✅ 已实现 | 实时最佳招法 + 评分 + 日志 |
+| 📚 云库查询（chessdb.cn） | ✅ 已实现 | 开局库数据源；可在配置中开关 |
+| 🖼️ 图片识别 | 🕓 开发中 | 按钮已占位，未接线 |
+| 📋 复制局面 | 🕓 开发中 | 按钮已占位，未接线 |
+| ♟️ 人机对弈 / 连线对战 | 🕓 未实现 | 产品决策后按 Spec Kit 流程实现 |
+| 🚀 GPU 加速 | 🕓 待验证 | 代码支持 CUDA/DirectML/CoreML，需目标机型实测；仅加速识别，引擎始终 CPU |
 
 ## 🎯 核心功能
 
@@ -50,11 +56,13 @@
 
 ## 🚀 快速上手
 
-1. 下载并运行程序
-2. 在弹窗中选择目标窗口
-3. 工具将自动识别棋盘并启动引擎分析
-4. 右侧面板实时展示最佳走法与评分
-5. 可在“设置”中自由调整分析深度、线程数及开局库参数
+1. `pnpm install && pnpm dev` 启动前端开发环境（或使用 Release 的 Web 构建）
+2. 点击“启”按钮，在弹窗中选择要监听的**对局窗口**
+3. 工具自动识别棋盘并启动引擎分析
+4. 右侧面板实时展示最佳走法、评分、深度与日志
+5. 点击“配”调整深度/时间/线程/哈希/云库参数
+
+> 桌面完整版需 `libs/large.onnx` 与引擎资源：详见 [docs/SOP.md](./docs/SOP.md)。
 
 ## 📸 应用截图
 
@@ -71,6 +79,10 @@
 
 ### 📚 项目文档
 - [SPEC.md](./docs/SPEC.md) 项目规格与验收基线
+- [SPEC-V2.md](./docs/SPEC-V2.md) 本轮增量规范（Spec Kit）
+- [REQUIREMENT-MATRIX.md](./docs/REQUIREMENT-MATRIX.md) 需求追踪矩阵
+- [AUDIT-V2.md](./docs/AUDIT-V2.md) 深度审计问题清单
+- [SELF-REVIEW.md](./docs/SELF-REVIEW.md) 反向审判
 - [CONTRACT.md](./docs/CONTRACT.md) 前后端 Tauri 命令/事件契约
 - [SOP.md](./docs/SOP.md) 从零跑通→发布→回滚 Runbook
 - [SCALABILITY-REVIEW.md](./docs/SCALABILITY-REVIEW.md) 可扩展性适用性审查
@@ -78,16 +90,16 @@
 
 ## 🛠 开发计划
 
-- [x] 基础棋盘识别
+- [x] 基础棋盘识别（代码就绪，模型待补齐）
 - [x] 引擎分析集成
-- [x] 跨平台适配
+- [x] 中文招法展示
 - [x] 可视化配置界面
-- [ ] 自研轻量AI引擎接入
-- [ ] 更多引擎配置项
-- [ ] 开局库接入
+- [x] 云库查询
+- [ ] 图片识别
+- [ ] 复制局面
 - [ ] 对局数据导出
-- [ ] 个性化学习数据统计 
-- [ ] 人机对战模式
+- [ ] 人机对战 / 连线对战
+- [ ] 自研轻量 AI 引擎接入
 
 ## 📜 许可声明
 

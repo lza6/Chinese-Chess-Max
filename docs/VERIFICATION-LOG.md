@@ -46,3 +46,13 @@
 - 升级：CodeQL v3 -> v4（github/codeql-action 三处）；CI e2e job 增加显式 pnpm check:contract。
 - 资源 gate 本地验证：pikafish 四件套 found；libs/large.onnx missing -> exit 1（正确）。
 - GitHub 线上 @364e991 job 级证据：CI changes success（frontend/e2e/backend skipped 为路径过滤正确行为）；Security 五 job（osv-scan/secret-scan/dependency-audit/codeql×2）全 success；Release 三 job（build-linux/build-windows/publish）全 success。
+
+## 2026-09-24 第三轮终局闭环审计（Spec Kit + 4 Agent + 本地真实验证解锁 Rust 编译）
+- **重大能力突破**：放置占位 large.onnx 解锁 include_bytes 编译 → 本机真实跑通 cargo check / cargo clippy(-D warnings) / cargo test --lib = 10/10 全绿。
+- **关键资源缺陷**：仓库自带 pikafish-windows.exe（2025-01-10, 1.4MB）连自带 nnue 也拒绝加载（引擎启动即退出，生产运行时引擎必死）。官方 2026-09-06 引擎+配套 nnue 验证可用（工作区已替换验证，未入库）。large.onnx 仍需真实模型。
+- **Rust 修复（均真实验证）**：引擎 UCI 握手+isready；bestmove EOF 防死循环；read_line lossy 容忍非 UTF-8；analyse pvs 空兜底；config 读锁快照不阻塞写锁；start_listen 防重入(guard.is_some)；stop_listen detach 不 join；ListenWindow Result；chessdb https+tracing+防 panic；config 原子写+解析失败备份；logger try_init 防重复初始化。
+- **前端修复（均验证）**：Analyse 滚动 ref/nextTick/高亮清理/空兜底/time 展示；Chessboard 监听 onMounted+onUnmounted 解绑；Toolbar pending 防重复+按钮 loading；假功能(copy_fen/图片识别)如实标注开发中；jsdom scrollTo polyfill。
+- **工程修复**：README 诚实化（功能矩阵/下载说明）；CI 过滤补 scripts/ci+security.yml；.gitignore 补 .env*/.zip/.bak-*；CHANGELOG 建立。
+- **验收矩阵全绿**：pnpm format/lint/typecheck/test:coverage(14用例)/build/e2e(Chromium)/check:contract + cargo fmt/clippy/test(10/10)。
+
+- 版本 bump 0.2.2 -> 0.2.3（package/Cargo/tauri×3/docs/CHANGELOG）。

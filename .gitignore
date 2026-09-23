@@ -51,3 +51,10 @@ AGENTS.md
 coverage
 playwright-report
 test-results
+
+# 环境变量与本地打包/备份产物（防误提交）
+.env
+.env.*
+!.env.example
+*.zip
+*.bak-*

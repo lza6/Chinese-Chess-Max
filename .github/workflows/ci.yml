@@ -37,10 +37,14 @@ jobs:
                         - 'e2e/**'
                         - 'index.html'
                         - 'vite.config.ts'
+                        - 'scripts/ci/**'
                         - '.github/workflows/ci.yml'
+                        - '.github/workflows/security.yml'
                       backend:
                         - 'server/**'
+                        - 'scripts/ci/**'
                         - '.github/workflows/ci.yml'
+                        - '.github/workflows/security.yml'
 
     frontend:
         needs: changes

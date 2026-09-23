@@ -134,8 +134,21 @@ jobs:
                   path: artifacts
             - name: 推导版本 tag
               id: tag
-              run: echo "tag=v$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+              run: |
+                  V=$(node -p "require('./package.json').version")
+                  echo "tag=v${V}" >> "$GITHUB_OUTPUT"
+            - name: 检查 Release 是否已存在
+              id: check-release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  if gh release view "${{ steps.tag.outputs.tag }}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+                      echo "exists=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "exists=false" >> "$GITHUB_OUTPUT"
+                  fi
             - name: 创建 GitHub Release（草稿，人工审批后发布）
+              if: steps.check-release.outputs.exists == 'false'
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: ${{ steps.tag.outputs.tag }}

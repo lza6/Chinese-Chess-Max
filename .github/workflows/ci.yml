@@ -90,6 +90,7 @@ jobs:
             - run: cargo fmt --check
             - name: 检查 YOLO 模型资源
               id: check-model
+              shell: bash
               run: |
                   if [ -f ../libs/large.onnx ]; then
                       echo "found=true" >> "$GITHUB_OUTPUT"

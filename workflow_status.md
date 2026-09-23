@@ -23,5 +23,13 @@
 3. 想加“人机对弈/连线对战”需产品功能拆解（先出 SPEC 再用 spec-kit 流程）。
 
 ## 最新：GitHub 线上验证（2026-09-23）
+
 - CI / Security / Release 三条 workflow 全绿（commit `0d94b5e`）。
 - Security 曾两连红已修复：pnpm.overrides(postcss/nanoid) + cargo 定向升级 + osv 官方 CLI 与 CVSS>=7 门禁 + release 幂等 + windows shell:bash。
+
+## 最新：2026-09-23 第二轮终局审计（主控代理复跑）
+
+- 本地真实全量重跑全绿：format/lint/typecheck/test:coverage(14用例)/build/e2e(Chromium)/cargo fmt/check:contract。
+- 新修复 3 项：check-contract 脏变量+错误符号、.gitattributes LF 行尾契约、CI e2e 显式契约步骤；CodeQL v3->v4。
+- 线上 job 级证据 @364e991：CI/Security/Release 全 success；v0.2.0/v0.2.1 Release 携带 dist.zip。
+- 唯一硬阻塞不变：缺 libs/large.onnx（YOLOv8 40-50MB，需用户提供，compile-time include_bytes）。

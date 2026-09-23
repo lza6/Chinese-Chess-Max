@@ -39,3 +39,10 @@
 
 ## 2026-09-23 GitHub 线上三线全绿（本地勿重复跑）
 - CI / Security / Release 均 success @ 0d94b5e；改流水线前先看本文档踩坑区。
+
+## 2026-09-23 第二轮终局审计（本地真实重跑 + 新修复）
+- 本机全量重跑：format:check / lint / typecheck / test:coverage（5 文件 14 用例，Lines 59.9 Branches 43.1 Funcs 48.5 Stmts 60）/ build（gzip JS 143.9KB）/ e2e（Chromium 1 passed）/ cargo fmt --check 全绿。
+- 新发现并修复：check-contract.mjs 错误分支 iles = 1; 未声明变量（漂移时会抛 ReferenceError 而非清晰报错，错误前缀 ✔ 误用）；check-resources.sh CRLF 在 Windows bash 下语法炸；新增 .gitattributes 行尾契约（*.sh/*.mjs/*.js/*.ts/*.vue/*.json/*.yml/*.md 强制 LF）。
+- 升级：CodeQL v3 -> v4（github/codeql-action 三处）；CI e2e job 增加显式 pnpm check:contract。
+- 资源 gate 本地验证：pikafish 四件套 found；libs/large.onnx missing -> exit 1（正确）。
+- GitHub 线上 @364e991 job 级证据：CI changes success（frontend/e2e/backend skipped 为路径过滤正确行为）；Security 五 job（osv-scan/secret-scan/dependency-audit/codeql×2）全 success；Release 三 job（build-linux/build-windows/publish）全 success。

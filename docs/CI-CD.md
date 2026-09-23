@@ -41,7 +41,7 @@ feature/* ──PR──▶ ┌──────────────── 
 | Build | `.github/workflows/ci.yml` (backend job) | 同上 | 三平台矩阵 cargo check --all-targets（Rust 编译验证） |
 | Qualité | `ci.yml` (frontend) | 同上 | `pnpm format:check`（Prettier）→ `pnpm lint`（ESLint，warnings=0 即失败）→ `pnpm typecheck`（vue-tsc --noEmit） |
 | Tests | `ci.yml` | 同上 | `pnpm test:coverage`（Vitest + jsdom 单测，阈值见 vitest.config.ts）→ `pnpm e2e`（Playwright 真实浏览器，Tauri IPC 桥 mock） |
-| Sécurité | `.github/workflows/security.yml` | push main/develop + PR + 每周一 | OSV 依赖扫描（pnpm-lock.yaml + server/Cargo.lock）→ `pnpm audit --audit-level high` → Gitleaks 密钥扫描 → CodeQL（JS/TS + Rust） |
+| Sécurité | `.github/workflows/security.yml` | push main/develop + PR + 每周一 | OSV 依赖扫描（pnpm-lock.yaml + server/Cargo.lock）→ `pnpm audit --audit-level high` → Gitleaks 密钥扫描 → CodeQL v4（JS/TS + Rust） |
 | Déploiement | `.github/workflows/release.yml` | push main + 手动 workflow_dispatch | 见第 3 节 |
 | Notifications | `release.yml` 各 job | 失败时 | `rtCamp/action-slack-notify@v2`（可选，配 `SLACK_WEBHOOK_URL` 后启用） |
 

@@ -1,0 +1,73 @@
+name: Security
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+    schedule:
+        - cron: "0 2 * * 1"
+
+concurrency:
+    group: security-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    osv-scan:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - name: OSV 依赖漏洞扫描（pnpm + Cargo）
+              uses: google/osv-scanner-action@v1
+              with:
+                  scan-args: |-
+                      --lockfile=pnpm-lock.yaml
+                      --lockfile=server/Cargo.lock
+
+    dependency-audit:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - name: pnpm audit（>= high 视为失败）
+              run: pnpm audit --prod --audit-level high
+
+    secret-scan:
+        runs-on: ubuntu-latest
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Gitleaks 密钥扫描
+              uses: gitleaks/gitleaks-action@v2
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    codeql:
+        runs-on: ubuntu-latest
+        permissions:
+            security-events: write
+        strategy:
+            fail-fast: false
+            matrix:
+                language: [javascript-typescript, rust]
+        steps:
+            - uses: actions/checkout@v4
+            - name: CodeQL init
+              uses: github/codeql-action/init@v3
+              with:
+                  languages: ${{ matrix.language }}
+            - name: CodeQL autobuild
+              uses: github/codeql-action/autobuild@v3
+            - name: CodeQL analyze
+              uses: github/codeql-action/analyze@v3

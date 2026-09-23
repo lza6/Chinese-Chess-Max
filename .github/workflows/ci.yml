@@ -1,0 +1,128 @@
+name: CI
+
+on:
+    push:
+        branches: [main, develop]
+    pull_request:
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    changes:
+        runs-on: ubuntu-latest
+        outputs:
+            frontend: ${{ steps.filter.outputs.frontend }}
+            backend: ${{ steps.filter.outputs.backend }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dorny/paths-filter@v3
+              id: filter
+              with:
+                  filters: |
+                      frontend:
+                        - 'src/**'
+                        - 'package.json'
+                        - 'pnpm-lock.yaml'
+                        - 'pnpm-workspace.yaml'
+                        - 'eslint.config.js'
+                        - '.prettierrc.json'
+                        - '.prettierignore'
+                        - 'vitest.config.ts'
+                        - 'tests/**'
+                        - 'e2e/**'
+                        - 'index.html'
+                        - 'vite.config.ts'
+                        - '.github/workflows/ci.yml'
+                      backend:
+                        - 'server/**'
+                        - '.github/workflows/ci.yml'
+
+    frontend:
+        needs: changes
+        if: needs.changes.outputs.frontend == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm format:check
+            - run: pnpm lint
+            - run: pnpm typecheck
+            - run: pnpm test:coverage
+            - run: pnpm build
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-frontend
+                  path: dist/
+                  if-no-files-found: error
+
+    backend:
+        needs: changes
+        if: needs.changes.outputs.backend == 'true'
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+        defaults:
+            run:
+                working-directory: server
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt, clippy
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: server
+            - run: cargo fmt --check
+            - name: 检查 YOLO 模型资源
+              id: check-model
+              run: |
+                  if [ -f ../libs/large.onnx ]; then
+                      echo "found=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "found=false" >> "$GITHUB_OUTPUT"
+                      echo "::notice::缺少 libs/large.onnx（YOLOv8 模型，编译期 include_bytes 内嵌），后端 clippy/check 跳过；补齐该文件后自动启用"
+                  fi
+            - name: cargo clippy
+              if: steps.check-model.outputs.found == 'true'
+              run: cargo clippy --all-targets -- -D warnings
+            - name: cargo check
+              if: steps.check-model.outputs.found == 'true'
+              run: cargo check --all-targets
+
+    e2e:
+        needs: changes
+        if: needs.changes.outputs.frontend == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm exec playwright install --with-deps chromium
+            - run: pnpm build
+            - run: pnpm e2e
+            - uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: playwright-report
+                  path: playwright-report/
+                  if-no-files-found: ignore

@@ -1,0 +1,152 @@
+name: Release
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+    build-linux:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm build
+            - name: 打包前端 dist
+              run: (cd dist && zip -rq ../dist.zip .)
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: dist-web
+                  path: dist.zip
+                  if-no-files-found: error
+            - name: 检查 Linux onnxruntime 资源
+              id: check-linux
+              run: |
+                  if compgen -G "libs/linux/libonnxruntime*.so" >/dev/null; then
+                    echo "found=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "found=false" >> "$GITHUB_OUTPUT"
+                    echo "::notice::libs/linux/libonnxruntime*.so 缺失，跳过 Linux deb 打包（补齐资源后自动启用）"
+                  fi
+            - name: 安装 Tauri Linux 系统依赖
+              if: steps.check-linux.outputs.found == 'true'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+            - name: Tauri build (deb)
+              if: steps.check-linux.outputs.found == 'true'
+              run: |
+                  cargo install tauri-cli --version "^2" --locked
+                  tauri build --config server/tauri.linux.conf.json
+            - uses: actions/upload-artifact@v4
+              if: steps.check-linux.outputs.found == 'true'
+              with:
+                  name: bundle-linux
+                  path: server/target/release/bundle/
+                  if-no-files-found: error
+            - name: 失败通知 Slack
+              if: failure() && env.SLACK_WEBHOOK_URL != ''
+              uses: rtCamp/action-slack-notify@v2
+              env:
+                  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+                  SLACK_TITLE: 🚨 Release build-linux 失败
+                  SLACK_MESSAGE: lza6/Chinese-Chess-Max main 分支 Release（Linux）失败，请查看 https://github.com/lza6/Chinese-Chess-Max/actions
+
+    build-windows:
+        runs-on: windows-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+            - uses: dtolnay/rust-toolchain@stable
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm build
+            - name: 检查 Windows CPU onnxruntime 资源
+              id: check-win-cpu
+              shell: pwsh
+              run: |
+                  if (Get-ChildItem "libs/windows-cpu/*.dll" -File -ErrorAction SilentlyContinue) {
+                    "found=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                  } else {
+                    "found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                    Write-Host "::notice::libs/windows-cpu/*.dll 缺失，跳过 CPU MSI 打包（补齐资源后自动启用）"
+                  }
+            - name: Tauri build CPU (msi)
+              if: steps.check-win-cpu.outputs.found == 'true'
+              run: pnpm exec tauri build --config server/tauri.windows.cpu.conf.json
+            - name: 检查 Windows GPU onnxruntime 资源
+              id: check-win-gpu
+              shell: pwsh
+              run: |
+                  if (Get-ChildItem "libs/windows-gpu/*.dll" -File -ErrorAction SilentlyContinue) {
+                    "found=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                  } else {
+                    "found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+                    Write-Host "::notice::libs/windows-gpu/*.dll 缺失，跳过 GPU MSI 打包（补齐资源后自动启用）"
+                  }
+            - name: Tauri build GPU (msi)
+              if: steps.check-win-gpu.outputs.found == 'true'
+              run: pnpm exec tauri build --config server/tauri.windows.gpu.conf.json --features gpu
+            - uses: actions/upload-artifact@v4
+              if: steps.check-win-cpu.outputs.found == 'true' || steps.check-win-gpu.outputs.found == 'true'
+              with:
+                  name: bundle-windows
+                  path: server/target/release/bundle/
+                  if-no-files-found: error
+            - name: 失败通知 Slack
+              if: failure() && env.SLACK_WEBHOOK_URL != ''
+              uses: rtCamp/action-slack-notify@v2
+              env:
+                  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+                  SLACK_TITLE: 🚨 Release build-windows 失败
+                  SLACK_MESSAGE: lza6/Chinese-Chess-Max main 分支 Release（Windows）失败，请查看 https://github.com/lza6/Chinese-Chess-Max/actions
+
+    publish:
+        needs: [build-linux, build-windows]
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+            - name: 推导版本 tag
+              id: tag
+              run: echo "tag=v$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+            - name: 创建 GitHub Release（草稿，人工审批后发布）
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ steps.tag.outputs.tag }}
+                  name: Release ${{ steps.tag.outputs.tag }}
+                  draft: true
+                  files: artifacts/**/*
+                  generate_release_notes: true
+            - name: 失败通知 Slack
+              if: failure() && env.SLACK_WEBHOOK_URL != ''
+              uses: rtCamp/action-slack-notify@v2
+              env:
+                  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+                  SLACK_TITLE: 🚨 Release publish 失败
+                  SLACK_MESSAGE: lza6/Chinese-Chess-Max Release publish 失败，请查看 https://github.com/lza6/Chinese-Chess-Max/actions

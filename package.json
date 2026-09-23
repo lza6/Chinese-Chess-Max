@@ -1,7 +1,7 @@
 {
   "name": "chinese-chess-max",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check:contract": "node scripts/ci/check-contract.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

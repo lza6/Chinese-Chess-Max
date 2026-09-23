@@ -225,7 +225,8 @@ async function setEngineDepth() {
 }
 
 async function setEngineTime() {
-    await invoke("set_engine_time", { time: Math.round(config.value.time * 1000) });
+    // 单位契约：config.value.time 为“秒”，Rust set_engine_time 内部 ×1000 存为 ms
+    await invoke("set_engine_time", { time: config.value.time });
 }
 
 async function setEngineThreads() {

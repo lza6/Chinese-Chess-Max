@@ -1,6 +1,6 @@
 [package]
 name = "xqlink"
-version = "0.2.3"
+version = "0.2.4"
 description = "中国象棋学习助手（Chinese-Chess-Max）"
 authors = ["lza6"]
 edition = "2024"

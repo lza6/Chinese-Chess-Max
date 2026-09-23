@@ -58,7 +58,6 @@ for (const f of walk(path.join(root, "server/src"), "", [])) {
 for (const cmd of [...feInvoke].sort()) {
     if (!backendCommands.has(cmd)) {
         issues.push(`FRONTEND-CALLS-MISSING: invoke("${cmd}") 在后端 generate_handler 中未注册`);
-        files = 1;
     }
 }
 // 2) 后端注册但前端未调用（可能为保留/未来命令）
@@ -81,7 +80,7 @@ console.log("前端调用:", [...feInvoke].sort().join(", "));
 console.log("前端监听事件:", [...feListen].sort().join(", "));
 console.log("后端发射事件:", [...backendEvents].sort().join(", "));
 if (issues.length) {
-    issues.forEach((i) => console.error("CONTRACT ✔  " + i));
+    issues.forEach((i) => console.error("CONTRACT ✘  " + i));
     process.exit(1);
 }
 console.log(

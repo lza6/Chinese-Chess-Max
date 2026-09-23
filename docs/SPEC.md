@@ -1,7 +1,7 @@
 # Spec：Chinese-Chess-Max 终端闭环审计基线
 
 > 角色：项目主规格（Spec-Kit / spec-driven-development）
-> 版本：v0.2.1 基线 · 仓库：lza6/Chinese-Chess-Max·交付分支：main
+> 版本：v0.2.2 基线 · 仓库：lza6/Chinese-Chess-Max·交付分支：main
 
 ## 1. Objective
 - 产品：中国象棋桌面分析工具（实时识别屏幕棋盘 → 引擎分析 → 中文招法建议）。

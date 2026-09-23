@@ -28,6 +28,6 @@
 - 命令/事件 → `docs/CONTRACT.md` 单测 Contract.test.ts。
 ## CI 实测踩坑（2026-09-23 线上 runner 验证）
 1. Windows runner 默认 shell=pwsh：bash/compgen if [ -f .. ] 步骤必须显式 shell: bash。
-2. YAML 里  易被转义搞坏 → 用 V= 再拼 tag。
+2. YAML 里 `$(node -p "require(...)")` 易被转义搞坏 → 用 `V=$(node -p "require(...)")` 再拼 tag。
 3. softprops/action-gh-release 对已存在 tag 会报错 → 加 gh release view 幂等门。
 4. Playwright 本地残留 dev server 会被 reuse → 明显卡死/旧配置时 Stop-Process 清 5173 再跑。

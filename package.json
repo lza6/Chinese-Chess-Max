@@ -1,0 +1,48 @@
+{
+  "name": "chinese-chess-max",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build:cpu": "vue-tsc --noEmit && vite build && tauri build --config server/tauri.windows.cpu.conf.json",
+    "build:gpu": "vue-tsc --noEmit && vite build && tauri build --config server/tauri.windows.gpu.conf.json --features gpu",
+    "build:cpu:rotate": "vue-tsc --noEmit && vite build && tauri build --config server/tauri.windows.cpu.conf.json --features rotate",
+    "build:gpu:rotate": "vue-tsc --noEmit && vite build && tauri build --config server/tauri.windows.gpu.conf.json --features gpu,rotate",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "@vitest/coverage-v8": "^5.0.1",
+    "@vue/test-utils": "^2.5.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.11.0",
+    "jsdom": "^30.1.1",
+    "naive-ui": "^2.41.0",
+    "prettier": "^3.9.8",
+    "typescript": "~5.6.2",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^6.4.3",
+    "vitest": "^5.0.1",
+    "vue-tsc": "^2.1.10"
+  }
+}

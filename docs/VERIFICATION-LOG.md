@@ -56,3 +56,13 @@
 - **验收矩阵全绿**：pnpm format/lint/typecheck/test:coverage(14用例)/build/e2e(Chromium)/check:contract + cargo fmt/clippy/test(10/10)。
 
 - 版本 bump 0.2.2 -> 0.2.3（package/Cargo/tauri×3/docs/CHANGELOG）。
+
+## 2026-09-26 第四轮终局闭环审计（v0.2.4 已发布 + v0.2.5 进行中）
+- 版本：v0.2.4（8acfac6 YOLOv11 契约修复 + 20eb522 版本 bump）；v0.2.5 进行中。
+- Rust 新增命令：get_current_fen / export_game / load_history / clear_history / review_step / human_move / reload_engine（接通）；新增事件 listen_state / review_state → 契约 **16 命令 / 6 事件** 双向对齐（check:contract + Contract.test）。
+- Rust 可靠性：listen.rs 全链 Result 化（Window::new/ListenWindow::new/capture 不 panic）；engine/mod.rs Engine::new/reload/setoption/write_command Result 化 + bestmove 容错 + parse_line 坏数字容错；worker.rs start_listen predict.map_err、emit 失败不 panic、confirm_board 截屏失败兜底。
+- 全门禁：cargo fmt / clippy(-D warnings) / test --lib **10/10 全绿**；pnpm format/lint/typecheck/test:coverage/build/check:contract 全绿；E2E（Chromium）覆盖窗口选择→启动→analyse→停止、配置保存反馈、复制局面、复盘/导出、响应式断点。
+- 前端同步：复制局面（get_current_fen + 剪贴板）、配置保存反馈 + 失败还原、重载引擎、窗口排序 + 键盘可选、监听状态徽标、空状态引导、日志时间戳、高亮组件内状态、复盘面板、导出按钮、棋盘坐标数据生成、App Flex 响应式 + 触控 ≥44px。
+- 文档同步：CHANGELOG v0.2.4/v0.2.5、CONTRACT 命令/事件补全、REQUIREMENT-MATRIX 刷新、AUDIT-V2 状态、docs/INDEX.md 新增、README 链接 + startup.png 改名、.gitignore 补 *.orig/server/AppData//server/gen/。
+- 清理：删除 4 个 server/src/*.rs.orig 残留。
+- 待落地：release.yml 双轨统一（C4）；D1-D4 外部阻塞不变（large.onnx 真实模型、onnxruntime DLL）。

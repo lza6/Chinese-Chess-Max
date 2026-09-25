@@ -39,11 +39,11 @@
 | ✅ C1 | P0 | README 宣传（毫秒级/GPU/开局库/自动连线）与真实严重不符 | README.md | 🔴 |
 | ✅ C2 | P1 | CI 路径过滤漏 scripts/ci/**：改契约脚本不触发任何校验 | ci.yml | 🔴 |
 | C3 | P1 | CodeQL Rust autobuild 无资源 gate：缺 large.onnx 时 cargo build 应失败（线上绿待复核） | security.yml | 🔴 |
-| C4 | P2 | check-resources.{ps1,sh} 文档称被 CI 使用，实际 release.yml 内联自己的检查→两套逻辑漂移 | docs/CI-CD.md+workflows | 🔴 |
+| ✅ C4 | P2 | check-resources.{ps1,sh} 文档称被 CI 使用，实际 release.yml 内联自己的检查→两套逻辑漂移 | docs/CI-CD.md+workflows | ✅（文档口径已统一；release.yml 内联检查待改为调用脚本后复验） |
 | ✅ C5 | P2 | 无 CHANGELOG；VERIFICATION-LOG 版本计数 4 vs 实际 5 | docs/ | 🔴 |
-| ✅ C6 | P2 | .gitignore 缺 .env*；dist.zip 无 ignore | .gitignore | 🔴 |
-| ✅ C7 (renormalize) | P2 | eol 伪 M 文件（check-resources.sh/tauri.linux.conf.json CRLF attr 状态）待 renormalize | 根目录 | 🔴 |
-| C8 | P3 | README starup 拼写错误（一致但应为 startup）；linux.png 1.17MB 过大 | README.md | 🟡 |
+| ✅ C6 | P2 | .gitignore 缺 .env*；dist.zip 无 ignore | .gitignore | ✅（已补 .env*/.zip/.bak-*；0.2.5 再补 *.orig/server/AppData//server/gen/） |
+| ✅ C7 (renormalize) | P2 | eol 伪 M 文件（check-resources.sh/tauri.linux.conf.json CRLF attr 状态）待 renormalize | 根目录 | ✅（.gitattributes 行尾契约已落地，当前 git status 无伪 M） |
+| C8 | P3 | README starup 拼写错误（一致但应为 startup）；linux.png 1.17MB 过大 | README.md | 🟡（starup→startup 已修，README 同步；linux.png 体积未压缩） |
 
 ## D. 外部阻塞（需用户/资源，非代码可解）
 | ID | 问题 | 状态 |
@@ -59,3 +59,4 @@
 3. 文档 C1/C2/C4/C5/C6/C7（README 诚实化 + CI 补过滤 + CHANGELOG）→ format 验证
 4. E2E B7 增强（窗口选择→启动→停止真实路径）
 5. 全量验证 → 主题提交 → push → 核验 → Release v0.2.3
+

@@ -58,3 +58,8 @@ test-results
 !.env.example
 *.zip
 *.bak-*
+
+# 反向工程/备份产物
+*.orig
+server/AppData/
+server/gen/

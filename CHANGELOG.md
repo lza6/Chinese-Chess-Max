@@ -2,6 +2,40 @@
 
 本仓库所有显著变更按时间倒序记录。
 
+## [0.2.5] - 2026-09-26（主控代理完整落地）
+
+### 新增（Rust 后端）
+
+- **新命令 `get_current_fen`**：读取当前局面 FEN（未监听时返回初始局面），支撑「复制局面/导出/复盘初始化」
+- **新命令 `export_game`**：对局导出（fen/txt/json），原子写用户文档目录
+- **新命令 `load_history` / `clear_history`**：对局历史读取/清空（内存共享）
+- **新命令 `review_step`**：复盘跳步（index=0 初始局面），重发 `position`/`mirror`/`review_state` 事件
+- **新命令 `human_move`**：人机走子（ICCS），回发 `move` 事件；引擎应对后续接入
+- **`reload_engine` 接通**：重新加载引擎并套用当前配置（配置热生效闭环）
+- **新事件 `listen_state`**：监听线程状态（idle/running/error），前端订阅展示
+- **新事件 `review_state`**：复盘步进状态（index/total/fen）
+
+### 可靠性（Rust）
+
+- `listen.rs` 全链 `Result` 化：`Window::new`/`ListenWindow::new`/`capture` 不再 `unwrap()` panic，窗口关闭/截屏失败返回可读错误
+- `engine/mod.rs`：`Engine::new`/`reload`/`setoption`/`write_command` 返回 `Result`；`bestmove` 写命令失败返回空串；`parse_line` 容错坏数字
+- `worker.rs`：`start_listen` 中 `predict().unwrap()` → `map_err`，识别失败不启动线程且 emit `listen_state:error`；`analyse`/`update_ui`/`handle_move` emit 失败不 panic；`confirm_board` 截屏失败不 panic
+- 配置热生效：引擎搜索前克隆配置快照（已存在），`reload_engine` 提供手动重载
+
+### 前端（已落地）
+
+- 复制局面（get_current_fen + 剪贴板）、配置保存反馈 + 失败还原、重载引擎按钮、窗口列表排序、键盘可选中、监听状态徽标、空状态引导
+- 分析日志时间戳、最佳招法空态「等待分析…」、高亮组件内状态（不全局清）、复盘面板、导出按钮
+- 棋盘坐标数据生成（替代 90 格硬编码）、position 全量重绘
+- App 布局 Flex 响应式 + 无障碍触控目标 ≥44px
+
+## [0.2.4] - 2026-09-26（YOLOv11 模型契约修复）
+
+### 修复（识别链路）
+
+- **YOLOv11 真实模型输出契约适配**（8acfac6）：`output0` + `stride19` 无 objectness，识别链路按真实输出解析
+- **版本 bump 0.2.3 → 0.2.4**（20eb522）
+
 ## [0.2.3] - 2026-09-24（终局闭环审计修复）
 
 ### 修复（Rust 后端）

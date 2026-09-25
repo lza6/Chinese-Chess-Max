@@ -66,7 +66,7 @@
 
 ## 📸 应用截图
 
-![启动界面](./docs/starup.png)  
+![启动界面](./docs/startup.png)  
 ![主界面分析](./docs/mainpage.png)  
 ![参数配置](./docs/configure.png)
 
@@ -87,6 +87,8 @@
 - [SOP.md](./docs/SOP.md) 从零跑通→发布→回滚 Runbook
 - [SCALABILITY-REVIEW.md](./docs/SCALABILITY-REVIEW.md) 可扩展性适用性审查
 - [VERIFICATION-LOG.md](./docs/VERIFICATION-LOG.md) 验证日志/记忆点
+- [INDEX.md](./docs/INDEX.md) 文档索引（总目录）
+- [计划书/下一步改进指南.md](./计划书/下一步改进指南.md) 优化迭代指南
 
 ## 🛠 开发计划
 
@@ -96,12 +98,13 @@
 - [x] 可视化配置界面
 - [x] 云库查询
 - [ ] 图片识别
-- [ ] 复制局面
-- [ ] 对局数据导出
-- [ ] 人机对战 / 连线对战
+- [x] 复制局面（v0.2.5 get_current_fen）
+- [x] 对局数据导出（v0.2.5 export_game）
+- [ ] 人机对战 / 连线对战（human_move 后端已落地，完整流程待产品确认）
 - [ ] 自研轻量 AI 引擎接入
 
 ## 📜 许可声明
 
 本项目基于 MIT License（[LICENSE](./LICENSE)），永久免费开源。
+
 

@@ -78,11 +78,24 @@ jobs:
                 language: [javascript-typescript, rust]
         steps:
             - uses: actions/checkout@v4
+            - name: 检查 YOLO 模型资源（Rust 编译 gate）
+              id: check-model
+              shell: bash
+              run: |
+                  if [ "${{ matrix.language }}" = "rust" ] && [ ! -f libs/large.onnx ]; then
+                    echo "skip=true" >> "$GITHUB_OUTPUT"
+                    echo "::notice::libs/large.onnx 缺失，Rust CodeQL 跳过（补齐模型后自动启用）"
+                  else
+                    echo "skip=false" >> "$GITHUB_OUTPUT"
+                  fi
             - name: CodeQL init
+              if: steps.check-model.outputs.skip != 'true'
               uses: github/codeql-action/init@v4
               with:
                   languages: ${{ matrix.language }}
             - name: CodeQL autobuild
+              if: steps.check-model.outputs.skip != 'true'
               uses: github/codeql-action/autobuild@v4
             - name: CodeQL analyze
+              if: steps.check-model.outputs.skip != 'true'
               uses: github/codeql-action/analyze@v4

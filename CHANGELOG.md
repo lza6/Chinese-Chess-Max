@@ -2,6 +2,13 @@
 
 本仓库所有显著变更按时间倒序记录。
 
+## [0.2.6] - 2026-09-26（CI/CD 双轨统一 + CodeQL 资源 gate）
+
+### 工程
+
+- **release.yml 资源检查统一**：check-linux / check-win-cpu / check-win-gpu 三处内联 `compgen`/`Get-ChildItem` 改为调用 `scripts/ci/check-resources.{sh,ps1}`（C4 落地，消除双轨漂移）
+- **security.yml CodeQL 资源 gate**：Rust 语言缺 `libs/large.onnx` 时跳过 CodeQL 并输出 notice（C3 落地，不假绿不失败）
+
 ## [0.2.5] - 2026-09-26（主控代理完整落地）
 
 ### 新增（Rust 后端）

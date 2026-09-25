@@ -51,3 +51,9 @@
 - v0.2.5 后端已落地：新增 get_current_fen / export_game / load_history / clear_history / review_step / human_move 命令 + listen_state / review_state 事件；reload_engine 接通；listen/engine/worker 全链 Result 化（cargo fmt/clippy/test 10/10 全绿）。
 - 文档同步：CHANGELOG / CONTRACT / REQUIREMENT-MATRIX / AUDIT-V2 / VERIFICATION-LOG / docs/INDEX / README / .gitignore。
 - 待落地：前端复盘/导出/人机交互接线与 E2E；release.yml 双轨统一；D1-D4 外部阻塞。
+
+## 最新：2026-09-26 第五轮（v0.2.6）
+
+- release.yml 资源检查统一为 scripts/ci/check-resources.{sh,ps1}（C4 落地）
+- security.yml CodeQL Rust 加 large.onnx 资源 gate（C3 落地）
+- 版本 0.2.5 → 0.2.6

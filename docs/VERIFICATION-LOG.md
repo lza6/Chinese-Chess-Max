@@ -66,3 +66,9 @@
 - 文档同步：CHANGELOG v0.2.4/v0.2.5、CONTRACT 命令/事件补全、REQUIREMENT-MATRIX 刷新、AUDIT-V2 状态、docs/INDEX.md 新增、README 链接 + startup.png 改名、.gitignore 补 *.orig/server/AppData//server/gen/。
 - 清理：删除 4 个 server/src/*.rs.orig 残留。
 - 待落地：release.yml 双轨统一（C4）；D1-D4 外部阻塞不变（large.onnx 真实模型、onnxruntime DLL）。
+
+## 2026-09-26 第五轮（v0.2.6：CI/CD 双轨统一 + CodeQL 资源 gate）
+- **C4 落地**：release.yml 三处内联资源检查（check-linux/check-win-cpu/check-win-gpu）改为调用 `scripts/ci/check-resources.{sh,ps1}`，消除双轨漂移；脚本本地验证缺资源 exit 1 / 存在 exit 0。
+- **C3 落地**：security.yml CodeQL job 增加 `check-model` gate，缺 libs/large.onnx 时 Rust CodeQL 跳过并输出 notice（不假绿、不失败）。
+- YAML 语法验证：release.yml / security.yml 均通过 pyyaml 解析。
+- 阻塞不变：libs/large.onnx 真实模型缺失；onnxruntime DLL 未入库。

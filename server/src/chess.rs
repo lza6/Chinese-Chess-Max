@@ -69,7 +69,7 @@ impl Camp {
 const BLACK_VERTICALS: [char; 9] = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const RED_VERTICALS: [char; 9] = ['九', '八', '七', '六', '五', '四', '三', '二', '一'];
 
-const RED_STARTPOS: [[char; 9]; 10] = [
+pub(crate) const RED_STARTPOS: [[char; 9]; 10] = [
     ['r', 'n', 'b', 'a', 'k', 'a', 'b', 'n', 'r'],
     [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
     [' ', 'c', ' ', ' ', ' ', ' ', ' ', 'c', ' '],
@@ -98,19 +98,58 @@ pub struct Changed {
     pub to: String,
 }
 
+/// 校验并解析 ICCS 坐标（如 "e2e4"）：必须 4 个 ASCII 字符，file a-i，rank 0-9
+/// 返回 (from_x, from_y, to_x, to_y)，非法输入返回 Err
+pub fn parse_iccs(iccs: &str) -> Result<(usize, usize, usize, usize), String> {
+    let b = iccs.as_bytes();
+    if b.len() != 4 {
+        return Err(format!("非法着法(长度≠4): {iccs:?}"));
+    }
+    let sq = |c: u8, is_file: bool| -> Result<usize, ()> {
+        if is_file {
+            // 文件: 'a'..='i'
+            if c.is_ascii_lowercase() && (b'a'..=b'i').contains(&c) {
+                Ok((c - b'a') as usize)
+            } else {
+                Err(())
+            }
+        } else {
+            // 行: '0'..='9'
+            if c.is_ascii_digit() {
+                // 行号 '0' -> y=9（黑方底线 row0 对应 FEN 首行），'9' -> y=0（红方底线）
+                Ok((9 - (c - b'0')) as usize)
+            } else {
+                Err(())
+            }
+        }
+    };
+    let (from_x, from_y, to_x, to_y) = (
+        sq(b[0], true),
+        sq(b[1], false),
+        sq(b[2], true),
+        sq(b[3], false),
+    );
+    match (from_x, from_y, to_x, to_y) {
+        (Ok(fx), Ok(fy), Ok(tx), Ok(ty)) => Ok((fx, fy, tx, ty)),
+        _ => Err(format!("非法着法坐标: {iccs:?}")),
+    }
+}
+
+pub fn red_startpos() -> [[char; 9]; 10] {
+    RED_STARTPOS
+}
+
 impl Changed {
-    pub fn from_pv(pv: &str, board: [[char; 9]; 10]) -> Self {
+    pub fn from_pv(pv: &str, board: [[char; 9]; 10]) -> Result<Self, String> {
+        let (from_x, from_y, _, _) = parse_iccs(pv)?;
         let (from, to) = pv.split_at(2);
-        let mut cs = pv.chars();
-        let from_x = cs.next().unwrap() as usize - 97;
-        let from_y = 57 - cs.next().unwrap() as usize;
         let piece = board[from_y][from_x];
-        Self {
+        Ok(Self {
             piece,
             camp: Camp::from_piece(piece),
             from: from.to_string(),
             to: to.to_string(),
-        }
+        })
     }
 }
 
@@ -158,28 +197,24 @@ pub struct Move {
 }
 
 impl Move {
-    pub fn new(iccs: &str) -> Self {
-        let mut cs = iccs.chars();
-        let from_x = cs.next().unwrap() as usize - 97;
-        let from_y = 57 - cs.next().unwrap() as usize;
-        let to_x = cs.next().unwrap() as usize - 97;
-        let to_y = 57 - cs.next().unwrap() as usize;
-        Self {
+    pub fn new(iccs: &str) -> Result<Self, String> {
+        let (from_x, from_y, to_x, to_y) = parse_iccs(iccs)?;
+        Ok(Self {
             from_x,
             from_y,
             to_x,
             to_y,
-        }
+        })
     }
 }
 
-pub fn board_move(board: [[char; 9]; 10], iccs: &str) -> [[char; 9]; 10] {
-    let mv = Move::new(iccs);
+pub fn board_move(board: [[char; 9]; 10], iccs: &str) -> Result<[[char; 9]; 10], String> {
+    let mv = Move::new(iccs)?;
     let mut new_board = board;
     let p = new_board[mv.from_y][mv.from_x];
     new_board[mv.to_y][mv.to_x] = p;
     new_board[mv.from_y][mv.from_x] = ' ';
-    new_board
+    Ok(new_board)
 }
 
 // 棋盘转换FEN逻辑
@@ -438,7 +473,9 @@ fn overlap_piece_xy(
 // 棋子坐标移动转中文模式
 pub fn board_move_chinese(board: [[char; 9]; 10], iccs: &str) -> String {
     let mut chinese = String::new();
-    let mv = Move::new(iccs);
+    let Ok(mv) = Move::new(iccs) else {
+        return String::new();
+    };
     let piece = board[mv.from_y][mv.from_x];
     let verticals = get_verticals(piece);
     match piece {
@@ -819,7 +856,7 @@ mod tests {
             "g4g5", "b7b5", "g5g9", "c5e7", "g9g4", "f9e8", "i2i6", "c7d5",
         ] {
             let notice = board_move_chinese(board, pv);
-            board = board_move(board, pv);
+            board = board_move(board, pv).unwrap();
             println!("pv: {} => {}", pv, notice);
         }
     }
@@ -904,5 +941,66 @@ mod tests {
         ];
         board_fix(&Camp::Black, &mut board);
         println!("{:?}", board)
+    }
+
+    #[test]
+    fn test_parse_iccs_rejects_invalid_inputs() {
+        // 空串 / 短串 / 越界坐标 / 非 ASCII：必须 Err，绝不 panic
+        for bad in [
+            "", "a", "a1", "a1b", "0000",  // 空着法（UCI null move）
+            "z9z9",  // 文件越界
+            "a;a1",  // 非数字行
+            "帅2e4", // 非 ASCII
+            "a10a1", // 行越界（两字符）
+        ] {
+            assert!(parse_iccs(bad).is_err(), "should reject: {bad:?}");
+        }
+        // 合法着法
+        for good in ["e2e4", "b7c7", "i9i8", "a0a1"] {
+            assert!(parse_iccs(good).is_ok(), "should accept: {good:?}");
+        }
+    }
+
+    #[test]
+    fn test_board_move_rejects_invalid_without_panic() {
+        let board = red_startpos();
+        assert!(board_move(board, "").is_err());
+        assert!(board_move(board, "0000").is_err());
+        assert!(board_move(board, "z9z9").is_err());
+        assert!(board_move(board, "帅2e4").is_err());
+        // from_pv 同源校验
+        assert!(Changed::from_pv("", board).is_err());
+        assert!(Changed::from_pv("0000", board).is_err());
+    }
+
+    #[test]
+    fn test_red_startpos_matches_standard_fen_orientation() {
+        // 标准 FEN 初始局面：黑方在上（小写），首行 "rnbakabnr"
+        let fen = board_fen(&Camp::Red, red_startpos());
+        assert!(
+            fen.starts_with("rnbakabnr/"),
+            "initial FEN must be standard orientation, got: {fen}"
+        );
+        // startpos() 对 red_startpos() 为真
+        assert!(startpos(red_startpos()));
+    }
+
+    #[test]
+    fn test_board_move_apply_then_diff_roundtrip() {
+        // 应用走子后 board_diff 应识别为 Move，且走子前后局面与 FEN 一致（防双重应用回归）
+        let board = red_startpos();
+        let after = board_move(board, "e3e4").unwrap();
+        assert_eq!(after[5][4], 'P'); // 红兵从 row6 col4 (e3) 进到 row5 col4 (e4)
+        assert_eq!(after[6][4], ' '); // 原位置 row6 col4 清空
+        // diff(board, after) 应为一个 Move
+        let (changed, state) = board_diff(board, after);
+        assert!(matches!(state, BoardChangeState::Move), "expected Move");
+        assert_eq!(changed.from, "e3");
+        assert_eq!(changed.to, "e4");
+        // 用 from_pv 重建后 from/to 一致
+        let rebuilt = Changed::from_pv("e3e4", board).unwrap();
+        assert_eq!(rebuilt.from, "e3");
+        assert_eq!(rebuilt.to, "e4");
+        assert_eq!(rebuilt.piece, 'P');
     }
 }

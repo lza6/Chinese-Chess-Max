@@ -72,3 +72,15 @@
 - **C3 落地**：security.yml CodeQL job 增加 `check-model` gate，缺 libs/large.onnx 时 Rust CodeQL 跳过并输出 notice（不假绿、不失败）。
 - YAML 语法验证：release.yml / security.yml 均通过 pyyaml 解析。
 - 阻塞不变：libs/large.onnx 真实模型缺失；onnxruntime DLL 未入库。
+
+## 2026-09-26 第六轮（v0.2.7：终局闭环总审计）
+- 4 Agent 深挖（Rust 健壮性/前端真实路径/生产可交付性）+ 主控复验 → 修复 P0/P1 共 6 类：
+  1. parse_iccs 严格校验（非法 ICCS 不 panic，human_move 安全）
+  2. analyse 非法 pv 不锁中毒
+  3. 历史 FEN 双重应用修复（record_move 传走子前局面）+ 引擎走子单次记录
+  4. 初始局面统一 red_startpos（标准方向，复盘/复制/人机不再倒置）
+  5. config save/load 防 panic（RwLock 不中毒）
+  6. yolo session 惰性 Result + NaN 安全
+- 前端：clear_history 接入 + clipboard 降级 + 复盘显示一致性
+- 验收：cargo fmt/clippy/test 14/14；pnpm lint/typecheck/test 24/24/build/e2e 6/6；契约 16/15/6
+- 版本 0.2.6 → 0.2.7

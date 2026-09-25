@@ -169,5 +169,3 @@ jobs:
                   SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
                   SLACK_TITLE: 🚨 Release publish 失败
                   SLACK_MESSAGE: lza6/Chinese-Chess-Max Release publish 失败，请查看 https://github.com/lza6/Chinese-Chess-Max/actions
-
-

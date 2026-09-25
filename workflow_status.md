@@ -57,3 +57,8 @@
 - release.yml 资源检查统一为 scripts/ci/check-resources.{sh,ps1}（C4 落地）
 - security.yml CodeQL Rust 加 large.onnx 资源 gate（C3 落地）
 - 版本 0.2.5 → 0.2.6
+
+## 最新：2026-09-26 第六轮（v0.2.7）
+
+- 终局闭环总审计：P0/P1 修复 6 类（非法输入/锁中毒/FEN 错乱/初始局面方向/config panic/yolo panic）
+- Rust 14 测试、前端 24 测试、E2E 6 条全绿；契约 16/15/6

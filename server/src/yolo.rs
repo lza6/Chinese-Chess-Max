@@ -11,7 +11,7 @@ use xcap::image::ImageBuffer;
 use xcap::image::Rgba;
 use xcap::image::imageops::FilterType;
 
-static SESSION: OnceLock<ort::session::Session> = OnceLock::new();
+static SESSION: OnceLock<ort::Result<ort::session::Session>> = OnceLock::new();
 
 pub const IMAGE_WIDTH: usize = 640;
 pub const IMAGE_HEIGHT: usize = 640;
@@ -28,7 +28,8 @@ const MODEL_BYTES: &[u8] = include_bytes!("../../libs/large.onnx");
 #[cfg(feature = "rotate")]
 const MODEL_BYTES: &[u8] = include_bytes!("../../libs/rotate.onnx");
 
-pub fn session() -> &'static ort::session::Session {
+pub fn session() -> &'static ort::Result<ort::session::Session> {
+    // 惰性初始化：失败时缓存 Err，不 panic（GPU/模型不可用 -> predict 返回错误 -> 监听线程降级）
     SESSION.get_or_init(|| {
         #[cfg(all(target_os = "windows", feature = "gpu"))]
         let eps = [
@@ -48,17 +49,13 @@ pub fn session() -> &'static ort::session::Session {
         ort::init()
             .with_execution_providers(eps)
             .commit()
-            .expect("init session failed with execution providers");
-
-        ort::session::Session::builder()
-            .expect("init session failed with builder")
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .expect("init session failed with optimization level")
-            .commit_from_memory(MODEL_BYTES)
-            .expect("init session failed with load model")
+            .and_then(|_| {
+                let builder = ort::session::Session::builder()?;
+                let builder = builder.with_optimization_level(GraphOptimizationLevel::Level3)?;
+                builder.commit_from_memory(MODEL_BYTES)
+            })
     })
 }
-
 pub fn predict(origin_img: ImageBuffer<Rgba<u8>, Vec<u8>>) -> ort::Result<Vec<Detection>> {
     let img = DynamicImage::from(origin_img).resize_exact(
         IMAGE_WIDTH as u32,
@@ -72,15 +69,24 @@ pub fn predict(origin_img: ImageBuffer<Rgba<u8>, Vec<u8>>) -> ort::Result<Vec<De
         input[[0, 1, y as usize, x as usize]] = g as f32 / 255.0;
         input[[0, 2, y as usize, x as usize]] = b as f32 / 255.0;
     }
-    let outputs = session().run(inputs!["images" => input.view()]?)?;
-    let output = outputs["output0"]
+    let session_ref: &ort::session::Session = match session().as_ref() {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(ort::Error::wrap(std::io::Error::other(format!(
+                "模型初始化失败: {e}"
+            ))));
+        }
+    };
+    let output = session_ref
+        .run(inputs!["images" => input.view()]?)?
+        .remove("output0")
+        .ok_or_else(|| ort::Error::wrap(std::io::Error::other("模型输出缺少 output0".to_string())))?
         .try_extract_tensor::<f32>()?
         .view()
         .t()
         .slice(s![.., .., 0])
         .t()
         .to_owned();
-
     let mut detections = output
         .rows()
         .into_iter()
@@ -88,7 +94,7 @@ pub fn predict(origin_img: ImageBuffer<Rgba<u8>, Vec<u8>>) -> ort::Result<Vec<De
             // YOLOv11 输出契约：4 坐标 + 15 类别（无 objectness），stride=19
             let (class_id, conf) = (4..19)
                 .map(|idx| (idx - 4, row[idx]))
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less)) // NaN 安全
                 .unwrap();
 
             if conf < CONFIDENCE_THRESHOLD {
@@ -143,7 +149,12 @@ impl Detection {
 
 // 使用IOU计算去除重叠的检测框（非极大值抑制）
 fn nms(detections: &mut Vec<Detection>) -> Vec<Detection> {
-    detections.sort_unstable_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap());
+    detections.sort_unstable_by(|a, b| {
+        // NaN 安全排序
+        a.confidence
+            .partial_cmp(&b.confidence)
+            .unwrap_or(std::cmp::Ordering::Less)
+    });
     let mut filtered_detections = Vec::with_capacity(33);
     let mut sizemap = [0; 15];
     while let Some(current) = detections.pop() {

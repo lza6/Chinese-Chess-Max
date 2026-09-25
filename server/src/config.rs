@@ -47,7 +47,18 @@ impl Config {
         debug!("load config from '{}'", config_path.display());
 
         if config_path.exists() {
-            let reader = BufReader::new(File::open(&config_path).unwrap());
+            let reader = match File::open(&config_path) {
+                Ok(f) => BufReader::new(f),
+                Err(e) => {
+                    tracing::warn!("读取配置文件失败（使用默认配置）: {e}");
+                    let config = Config {
+                        config_path: Some(config_path.clone()),
+                        ..Default::default()
+                    };
+                    config.save();
+                    return config;
+                }
+            };
             if let Ok(mut config) = serde_json::from_reader::<_, Config>(reader) {
                 match config.config_path {
                     Some(ref path) => {
@@ -83,27 +94,39 @@ impl Config {
     }
 
     pub fn save(&self) {
-        let path = self.config_path.as_ref().unwrap();
+        // 序列化/写盘失败不 panic：记录日志，避免 set_engine_* 命令内 panic 导致 RwLock 中毒
+        let path = match self.config_path.as_ref() {
+            Some(p) => p,
+            None => return,
+        };
         debug!("save config to '{}'", path.display());
-        // 将对象序列化为格式化的JSON字符串
-        let json_string = serde_json::to_string_pretty(self).unwrap();
+        let json_string = match serde_json::to_string_pretty(self) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("序列化配置失败（跳过保存）: {e}");
+                return;
+            }
+        };
 
         // 原子写：先写临时文件再替换，避免崩溃/中断导致配置损坏
         let tmp = path.with_extension("json.tmp");
-        {
-            let mut file = File::create(&tmp).unwrap();
-            file.write_all(json_string.as_bytes()).unwrap();
-            file.sync_all().ok();
-        }
-        match std::fs::rename(&tmp, path) {
+        match File::create(&tmp).and_then(|mut f| f.write_all(json_string.as_bytes())) {
             Ok(()) => {}
             Err(e) => {
-                // 跨盘/权限等场景 rename 失败时回退直接写
-                tracing::warn!("原子写失败({}), 回退直接写入: {}", e, path.display());
-                let mut file = File::create(path).unwrap();
-                file.write_all(json_string.as_bytes()).unwrap();
-                let _ = std::fs::remove_file(&tmp);
+                tracing::error!("写入配置临时文件失败（跳过保存）: {e}");
+                return;
             }
+        }
+        if let Err(e) = std::fs::rename(&tmp, path) {
+            // 跨盘/权限等场景 rename 失败时回退直接写
+            tracing::warn!("原子写失败({}), 回退直接写入: {}", e, path.display());
+            match File::create(path).and_then(|mut f| f.write_all(json_string.as_bytes())) {
+                Ok(()) => {}
+                Err(e2) => {
+                    tracing::error!("回退直接写入配置失败: {e2}");
+                }
+            }
+            let _ = std::fs::remove_file(&tmp);
         }
     }
 }

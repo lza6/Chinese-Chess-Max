@@ -104,7 +104,19 @@ async function copyFen() {
     try {
         const result = (await invoke("get_current_fen")) as [string, string] | string;
         const fen = Array.isArray(result) ? result[0] : result;
-        await navigator.clipboard.writeText(fen);
+        // 非安全上下文（http 部署）clipboard 可能不可用：textarea + execCommand 降级
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(fen);
+        } else {
+            const ta = document.createElement("textarea");
+            ta.value = fen;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            ta.remove();
+        }
         message.success("已复制 FEN 局面");
     } catch (e) {
         dialog.error({
@@ -587,4 +599,5 @@ async function toggleEngine() {
     outline-offset: 2px;
 }
 </style>
+
 

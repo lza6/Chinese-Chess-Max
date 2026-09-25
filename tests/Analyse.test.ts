@@ -114,7 +114,16 @@ describe("Analyse", () => {
         const handler = listeners["review_state"]?.at(-1);
         await handler({ payload: { index: 1, total: 1, fen: "fen-after" } });
         await nextTick();
-        expect(wrapper.text()).toContain("第 1/1 步");
+        expect(wrapper.text()).toContain("1/1 步");
+    });
+
+    it("清空历史按钮调用 clear_history 并重置复盘", async () => {
+        const wrapper = mount(Analyse);
+        await flushPromises();
+        expect(wrapper.find('[data-testid="history-1"]').exists()).toBe(true);
+        await wrapper.find('[data-testid="clear-history"]').trigger("click");
+        await flushPromises();
+        expect(invoke).toHaveBeenCalledWith("clear_history");
     });
 
     it("导出按钮调用 export_game 并显示路径", async () => {

@@ -98,6 +98,18 @@ const reviewTotal = ref(0);
 const reviewFen = ref('');
 const exportPath = ref('');
 
+async function clearHistory() {
+    try {
+        await invoke('clear_history');
+        history.value = [];
+        reviewIndex.value = 0;
+        reviewTotal.value = 0;
+        reviewFen.value = '';
+    } catch (e) {
+        console.error('清空历史失败:', e);
+    }
+}
+
 async function loadHistory() {
     try {
         history.value = await invoke<HistoryEntry[]>('load_history');
@@ -197,10 +209,11 @@ const logInstRef = ref<LogInst | null>(null);
                 >
                     下一步
                 </n-button>
+                <n-button size="tiny" data-testid="clear-history" @click="clearHistory">清空</n-button>
             </n-space>
         </n-flex>
         <n-text depth="3" style="font-size: 12px">
-            第 {{ reviewIndex }}/{{ reviewTotal }} 步{{ reviewFen ? ' · ' + reviewFen : '' }}
+            {{ reviewIndex }}/{{ history.length }} 步{{ reviewFen ? ' · ' + reviewFen : '' }}
         </n-text>
         <n-scrollbar style="max-height: 120px; margin-top: 6px">
             <div v-if="history.length === 0" style="color: #8a8a8a; font-size: 12px; padding: 4px">
@@ -245,6 +258,7 @@ const logInstRef = ref<LogInst | null>(null);
     font-size: 12px;
 }
 </style>
+
 
 
 

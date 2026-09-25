@@ -200,11 +200,16 @@ impl AnalysisContext {
     }
 
     // 处理移动事件（记录历史；emit 失败不 panic）
-    fn handle_move(&mut self, changed: &chess::Changed) {
-        let fen = chess::board_fen(
-            &changed.camp,
-            Self::board_after_move(self.last_board, changed),
-        );
+    /// 记录一步走子到历史并广播 move 事件。
+    /// `board_before` 必须是走子前的局面（调用方保证在 last_board 更新前传入），
+    /// FEN 由 board_before 正向应用走子得到，避免"对已更新局面二次应用"导致棋子丢失。
+    fn record_move(
+        &mut self,
+        changed: &chess::Changed,
+        board_before: [[char; 9]; 10],
+        source: &str,
+    ) {
+        let fen = chess::board_fen(&changed.camp, Self::board_after_move(board_before, changed));
         {
             let state = SHARED_STATE.get().unwrap();
             let mut history = state.history.lock().unwrap();
@@ -215,7 +220,7 @@ impl AnalysisContext {
                 changed.camp.to_char(),
                 format!("{}{}", changed.from, changed.to),
                 fen,
-                "human".to_string(),
+                source.to_string(),
             );
         }
         let _ = self.app.emit("move", changed);
@@ -223,36 +228,16 @@ impl AnalysisContext {
 
     fn board_after_move(board: [[char; 9]; 10], changed: &chess::Changed) -> [[char; 9]; 10] {
         let mut nb = board;
-        let from_x = changed.from.chars().next().unwrap_or('a') as usize - 97;
-        let from_y = 57 - changed.from.chars().nth(1).unwrap_or('0') as usize;
-        let to_x = changed.to.chars().next().unwrap_or('a') as usize - 97;
-        let to_y = 57 - changed.to.chars().nth(1).unwrap_or('0') as usize;
+        let Ok((from_x, from_y, to_x, to_y)) =
+            chess::parse_iccs(&format!("{}{}", changed.from, changed.to))
+        else {
+            return nb;
+        };
         if from_x < 9 && from_y < 10 && to_x < 9 && to_y < 10 {
             nb[to_y][to_x] = nb[from_y][from_x];
             nb[from_y][from_x] = ' ';
         }
         nb
-    }
-
-    // 记录引擎走子到历史（source=engine）
-    fn record_engine_move(&mut self, changed: &chess::Changed) {
-        let fen = chess::board_fen(
-            &changed.camp,
-            Self::board_after_move(self.last_board, changed),
-        );
-        {
-            let state = SHARED_STATE.get().unwrap();
-            let mut history = state.history.lock().unwrap();
-            history.push(
-                changed.from.clone(),
-                changed.to.clone(),
-                changed.piece,
-                changed.camp.to_char(),
-                format!("{}{}", changed.from, changed.to),
-                fen,
-                "engine".to_string(),
-            );
-        }
     }
 
     // 处理错误变化计数
@@ -299,16 +284,27 @@ pub fn analyse(
         error!("analyse: pvs 为空，跳过本次分析");
         return (chess::Changed::default(), board);
     };
+    // 校验最佳着法：非法 pv（空、短、越界坐标）不 panic、不锁中毒，跳过本次分析
+    let Ok(expect_board) = chess::board_move(board, best_pv) else {
+        error!("analyse: 非法最佳着法 {best_pv:?}，跳过本次分析");
+        return (chess::Changed::default(), board);
+    };
+    let Ok(expect_move) = chess::Changed::from_pv(best_pv, board) else {
+        error!("analyse: 非法最佳着法 {best_pv:?}，跳过本次分析");
+        return (chess::Changed::default(), board);
+    };
     let best_move = chess::board_move_chinese(board, best_pv);
-    let expect_board = chess::board_move(board, best_pv);
-    let expect_move = chess::Changed::from_pv(best_pv, board);
 
     let mut tmp_board = expect_board;
     result.moves.push(best_move);
     for pv in result.pvs.iter().skip(1).take(3) {
         let mv = chess::board_move_chinese(tmp_board, pv);
         result.moves.push(mv);
-        tmp_board = chess::board_move(tmp_board, pv);
+        // 后续变化非法则跳过该步（不影响已生成的主线）
+        let Ok(next_board) = chess::board_move(tmp_board, pv) else {
+            break;
+        };
+        tmp_board = next_board;
     }
     // 把结果发送给前端
     info!("分析结果 {:?}", result);
@@ -395,8 +391,9 @@ fn process_analysis_loop(mut context: AnalysisContext) {
 
                         match board_state {
                             chess::BoardChangeState::Move => {
+                                let board_before = context.last_board;
+                                context.record_move(&changed, board_before, "human");
                                 context.last_board = board;
-                                context.handle_move(&changed);
 
                                 if camp.eq(&changed.camp) {
                                     // 我方移动
@@ -459,9 +456,9 @@ fn process_analysis_loop(mut context: AnalysisContext) {
                     debug!("棋盘为预期棋盘，跳过分析");
                     let expect_move = context.expect_move.clone();
                     let expect_board = context.expect_board;
+                    let board_before = context.last_board;
+                    context.record_move(&expect_move, board_before, "engine");
                     context.last_board = expect_board;
-                    context.record_engine_move(&expect_move);
-                    context.handle_move(&expect_move);
 
                     // 更换下一个行动方
                     if current_state == ChessboardState::OurTurn {
@@ -493,8 +490,9 @@ fn process_analysis_loop(mut context: AnalysisContext) {
 
                         match board_state {
                             chess::BoardChangeState::Move => {
+                                let board_before = context.last_board;
+                                context.record_move(&changed, board_before, "human");
                                 context.last_board = board;
-                                context.handle_move(&changed);
 
                                 if camp.eq(&changed.camp) {
                                     // 我方移动，跳过分析
@@ -624,53 +622,11 @@ pub fn get_current_fen() -> Result<(String, String), String> {
     if history.current_fen.is_empty() {
         // 未监听时返回空，由前端决定是否用初始局面
         return Ok((
-            chess::board_fen(&chess::Camp::Red, start_board()),
+            chess::board_fen(&chess::Camp::Red, chess::red_startpos()),
             "w".to_string(),
         ));
     }
     Ok((history.current_fen.clone(), history.current_camp.clone()))
-}
-
-fn start_board() -> [[char; 9]; 10] {
-    let mut b = [[' '; 9]; 10];
-    let init = [
-        (0, 0, 'R'),
-        (1, 0, 'N'),
-        (2, 0, 'B'),
-        (3, 0, 'A'),
-        (4, 0, 'K'),
-        (5, 0, 'A'),
-        (6, 0, 'B'),
-        (7, 0, 'N'),
-        (8, 0, 'R'),
-        (1, 2, 'C'),
-        (7, 2, 'C'),
-        (0, 3, 'P'),
-        (2, 3, 'P'),
-        (4, 3, 'P'),
-        (6, 3, 'P'),
-        (8, 3, 'P'),
-        (0, 9, 'r'),
-        (1, 9, 'n'),
-        (2, 9, 'b'),
-        (3, 9, 'a'),
-        (4, 9, 'k'),
-        (5, 9, 'a'),
-        (6, 9, 'b'),
-        (7, 9, 'n'),
-        (8, 9, 'r'),
-        (1, 7, 'c'),
-        (7, 7, 'c'),
-        (0, 6, 'p'),
-        (2, 6, 'p'),
-        (4, 6, 'p'),
-        (6, 6, 'p'),
-        (8, 6, 'p'),
-    ];
-    for (x, y, p) in init {
-        b[y][x] = p;
-    }
-    b
 }
 
 /// 导出对局（FEN/TXT/JSON），原子写用户文档目录
@@ -766,7 +722,7 @@ pub fn review_step(app: AppHandle, index: usize) -> Result<(), String> {
     let total = entries.len();
     let (fen, camp) = if index == 0 {
         (
-            chess::board_fen(&chess::Camp::Red, start_board()),
+            chess::board_fen(&chess::Camp::Red, chess::red_startpos()),
             chess::Camp::Red,
         )
     } else if let Some(e) = entries.get(index - 1) {
@@ -796,14 +752,14 @@ pub async fn human_move(app: AppHandle, iccs: String) -> Result<(), String> {
     let state = SHARED_STATE.get().unwrap();
     let history = state.history.lock().unwrap();
     let current_fen = if history.current_fen.is_empty() {
-        chess::board_fen(&chess::Camp::Red, start_board())
+        chess::board_fen(&chess::Camp::Red, chess::red_startpos())
     } else {
         history.current_fen.clone()
     };
     drop(history);
 
     let board = chess::fen_to_board(&current_fen);
-    let changed = chess::Changed::from_pv(&iccs, board);
+    let changed = chess::Changed::from_pv(&iccs, board).map_err(|e| format!("非法走子: {e}"))?;
     let _ = app.emit("move", &changed);
     // 简单版：前端已用 human_move 更新棋盘；引擎应对由 review_step/分析线程负责。
     // 后续接入引擎搜索（Pending）。

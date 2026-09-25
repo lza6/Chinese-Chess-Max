@@ -51,7 +51,10 @@ pub async fn query(fen: &str, timeout: u64) -> QueryResult {
                             "pv" => {
                                 if let Some(pv_text) = parts.next() {
                                     for pv in pv_text.split('|') {
-                                        records.pvs.push(pv.to_string());
+                                        // 过滤空着法/尾分隔符产生的空串，避免进入 analyse
+                                        if !pv.is_empty() {
+                                            records.pvs.push(pv.to_string());
+                                        }
                                     }
                                 }
                             }

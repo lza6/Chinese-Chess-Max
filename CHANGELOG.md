@@ -2,6 +2,28 @@
 
 本仓库所有显著变更按时间倒序记录。
 
+## [0.2.7] - 2026-09-26（终局闭环总审计：P0 输入校验 + FEN 数据正确性 + 崩溃面根治）
+
+### 修复（P0/P1，真实终局审计发现）
+
+- **非法着法输入不再 panic**：新增 `parse_iccs` 严格校验（长度=4、file a-i、rank 0-9），`Changed::from_pv`/`Move::new`/`board_move` 改 `Result`；`human_move` 传坏 ICCS（如空串/`z9z9`/中文）返回可读错误而非崩溃
+- **引擎/云库 pv 不校验导致 Mutex 锁中毒**：`analyse` 在持有引擎锁时遇非法 pv 会 panic → 已改为非法 pv 跳过分析；chessdb 过滤空 pv
+- **历史 FEN 数据错乱（双重应用走子）**：`record_move` 现在传入走子前局面计算 FEN，棋子不再消失；引擎走子不再被记录两次（原 record_engine_move + handle_move 重复）
+- **初始局面重复定义且方向不一致**：删除 worker.rs 私有 `start_board()`，统一 `chess::red_startpos()`（黑方在上、标准 FEN 方向），复盘/复制/人机不再得到倒置局面
+- **config.rs 写盘失败 panic → RwLock 中毒**：save/load 全容错降级（I/O 错误记日志，不 panic，配置命令不永久失效）
+- **yolo.rs 会话初始化 expect panic**：GPU/模型不可用时惰性缓存 Err，`predict` 返回错误由监听线程降级；NaN 置信度排序 NaN 安全（max_by/nms）
+
+### 前端
+
+- 复盘面板「清空历史」按钮（clear_history 接入，契约前端调用 15/16）
+- 复制局面 clipboard 降级（http 非安全上下文 textarea+execCommand fallback）
+- 复盘显示统一用 history.length（不再依赖事件时序的 reviewTotal）
+
+### 测试
+
+- Rust 新增 4 个 P0 回归（非法 ICCS 拒绝 / 非法走子不 panic / 初始局面标准方向 / 走子往返一致性）：cargo test 10→14
+- 前端 23→24（clear_history）；E2E 6/6 全绿
+
 ## [0.2.6] - 2026-09-26（CI/CD 双轨统一 + CodeQL 资源 gate）
 
 ### 工程

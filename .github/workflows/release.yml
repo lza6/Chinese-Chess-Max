@@ -46,6 +46,7 @@ jobs:
                     echo "found=false" >> "$GITHUB_OUTPUT"
                     echo "::notice::libs/linux/libonnxruntime*.so 缺失，跳过 Linux deb 打包（补齐资源后自动启用）"
                   fi
+                  exit 0
             - name: 安装 Tauri Linux 系统依赖
               if: steps.check-linux.outputs.found == 'true'
               run: |
@@ -95,6 +96,7 @@ jobs:
                     "found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
                     Write-Host "::notice::libs/windows-cpu/*.dll 缺失，跳过 CPU MSI 打包（补齐资源后自动启用）"
                   }
+                  exit 0
             - name: Tauri build CPU (msi)
               if: steps.check-win-cpu.outputs.found == 'true'
               run: pnpm exec tauri build --config server/tauri.windows.cpu.conf.json
@@ -109,6 +111,7 @@ jobs:
                     "found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
                     Write-Host "::notice::libs/windows-gpu/*.dll 缺失，跳过 GPU MSI 打包（补齐资源后自动启用）"
                   }
+                  exit 0
             - name: Tauri build GPU (msi)
               if: steps.check-win-gpu.outputs.found == 'true'
               run: pnpm exec tauri build --config server/tauri.windows.gpu.conf.json --features gpu
@@ -166,4 +169,5 @@ jobs:
                   SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
                   SLACK_TITLE: 🚨 Release publish 失败
                   SLACK_MESSAGE: lza6/Chinese-Chess-Max Release publish 失败，请查看 https://github.com/lza6/Chinese-Chess-Max/actions
+
 

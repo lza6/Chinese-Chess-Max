@@ -1015,8 +1015,8 @@ mod tests {
     #[test]
     fn test_fen_to_board_tolerates_malformed_without_panic() {
         // 非法/畸形 FEN：必须不 panic（防御性）
-        let _ = fen_to_board("");                  // 空
-        let _ = fen_to_board("rnbakabnr/9");       // 缺行
+        let _ = fen_to_board(""); // 空
+        let _ = fen_to_board("rnbakabnr/9"); // 缺行
         let _ = fen_to_board("aaaaaaaaaaaaaaaaaaaa"); // 无斜杠超长
         let _ = fen_to_board("z".repeat(20).as_str()); // 越界文件
         let _ = fen_to_board("rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - -"); // 含附加字段
@@ -1026,5 +1026,3 @@ mod tests {
         assert_eq!(b[9][0], 'R');
     }
 }
-
-

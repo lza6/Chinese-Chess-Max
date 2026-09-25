@@ -126,6 +126,17 @@ describe("Analyse", () => {
         expect(invoke).toHaveBeenCalledWith("clear_history");
     });
 
+    it("复盘跳步失败显示可见错误", async () => {
+        const wrapper = mount(Analyse);
+        await flushPromises();
+        // 模拟 review_step 失败
+        invoke.mockRejectedValueOnce(new Error("index 越界"));
+        await wrapper.find('[data-testid="review-next"]').trigger("click");
+        await flushPromises();
+        expect(wrapper.find('[data-testid="review-error"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain("复盘跳步失败");
+    });
+
     it("导出按钮调用 export_game 并显示路径", async () => {
         const wrapper = mount(Analyse);
         await flushPromises();

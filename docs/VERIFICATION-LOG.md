@@ -103,3 +103,7 @@
 - SELF-REVIEW 第七轮反向审判（攻击 v0.2.5-v0.2.9 伪闭环）
 - board_move_chinese P/p 分支 position().unwrap() 兜底；fen_to_board 全防御化
 - cargo fmt/clippy/test 15/15 全绿
+
+## 2026-09-26 第十轮（v0.2.11：前端 A 层补位）
+- Analyse 复盘跳步失败可见错误反馈（review-error），不再仅 console.error
+- 前端 25 测试 + E2E 6/6 + build 全绿

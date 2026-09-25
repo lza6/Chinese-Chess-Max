@@ -97,6 +97,7 @@ const reviewIndex = ref(0);
 const reviewTotal = ref(0);
 const reviewFen = ref('');
 const exportPath = ref('');
+const reviewError = ref('');
 
 async function clearHistory() {
     try {
@@ -122,8 +123,10 @@ async function reviewStep(index: number) {
     if (index < 0 || index > history.value.length) return;
     try {
         await invoke('review_step', { index });
+        reviewError.value = '';
     } catch (e) {
         console.error('复盘跳步失败:', e);
+        reviewError.value = '复盘跳步失败: ' + String(e);
     }
 }
 
@@ -215,6 +218,7 @@ const logInstRef = ref<LogInst | null>(null);
         <n-text depth="3" style="font-size: 12px">
             {{ reviewIndex }}/{{ history.length }} 步{{ reviewFen ? ' · ' + reviewFen : '' }}
         </n-text>
+        <n-text v-if="reviewError" type="error" style="font-size: 12px" data-testid="review-error">{{ reviewError }}</n-text>
         <n-scrollbar style="max-height: 120px; margin-top: 6px">
             <div v-if="history.length === 0" style="color: #8a8a8a; font-size: 12px; padding: 4px">
                 暂无对局历史（启动引擎后自动记录）
@@ -258,6 +262,7 @@ const logInstRef = ref<LogInst | null>(null);
     font-size: 12px;
 }
 </style>
+
 
 
 

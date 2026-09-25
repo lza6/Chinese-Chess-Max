@@ -7,7 +7,7 @@ const URL: &str = "https://www.chessdb.cn/chessdb.php";
 const REFER: &str = "https://www.chessdb.cn/query/";
 const AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36";
 const SOURCE_CHESSDB: &str = "云库";
-pub async fn query(fen: &str, timeout: u64) -> QueryResult {
+async fn query_once(fen: &str, timeout: u64) -> QueryResult {
     let mut records = super::QueryResult::default();
     let resp = reqwest::Client::new()
         .get(URL)
@@ -72,6 +72,17 @@ pub async fn query(fen: &str, timeout: u64) -> QueryResult {
         }
     };
     records
+}
+
+/// 查询云库（querypv）。瞬态失败（网络/连接异常）重试 1 次，避免偶发抖动直接降级引擎。
+pub async fn query(fen: &str, timeout: u64) -> QueryResult {
+    let first = query_once(fen, timeout).await;
+    if first.state == QueryState::ServerInternalError {
+        tracing::debug!("chessdb 首查失败，200ms 后重试 1 次");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        return query_once(fen, timeout).await;
+    }
+    first
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

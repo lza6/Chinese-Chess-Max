@@ -1,7 +1,7 @@
 # Spec V2：终局闭环审计增量规范（Spec Kit / spec-driven-development）
 
 > 角色：项目主规格（本轮增量，覆盖 docs/SPEC.md 未覆盖的缺陷面）
-> 版本：v0.2.4+ · 仓库：lza6/Chinese-Chess-Max · 交付分支：main
+> 版本：v0.2.8+ · 仓库：lza6/Chinese-Chess-Max · 交付分支：main
 > 方法：本机 addy-spec-driven-development（SKILL.md，无需联网重装）
 
 ## 1. Objective
@@ -68,3 +68,4 @@
 ## 9. Open Questions
 - libs/large.onnx 何时由用户提供？（阻塞 Rust 编译/安装包）
 - 连线对战/人机对弈是否列为后续里程碑？（当前 disabled，需产品决策）
+

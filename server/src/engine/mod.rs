@@ -22,7 +22,7 @@ pub struct QueryResult {
 
 const SOURCE_ENGINE: &str = "引擎";
 
-#[derive(Debug, serde::Serialize, Default, Clone, Copy)]
+#[derive(Debug, serde::Serialize, Default, Clone, Copy, PartialEq)]
 pub enum QueryState {
     Success,
     #[default]
@@ -107,10 +107,20 @@ impl Engine {
         Ok(())
     }
 
-    /// 读取输出直到出现目标关键字；EOF 时返回 None
+    /// 读取输出直到出现目标关键字；EOF 时返回 None。
+    /// 同时设时间预算（默认 10s）与行数上限（10_000），引擎持续输出但不给目标时不会无限阻塞。
     fn wait_until(&mut self, keyword: &str, ctx: &str) -> Option<bool> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         let mut tries = 0u32;
         loop {
+            if std::time::Instant::now() >= deadline {
+                tracing::warn!(
+                    "{}({})：等待超时（10s 时间预算用尽，引擎可能卡死）",
+                    ctx,
+                    keyword
+                );
+                return None;
+            }
             match self.read_line() {
                 None => {
                     tracing::warn!("{}({})：引擎输出 EOF 提前退出", ctx, keyword);
@@ -122,7 +132,7 @@ impl Engine {
                     }
                     tries += 1;
                     if tries > 10_000 {
-                        tracing::warn!("{}({})：等待超时（引擎可能卡死）", ctx, keyword);
+                        tracing::warn!("{}({})：等待超时（引擎输出行数过多）", ctx, keyword);
                         return None;
                     }
                 }

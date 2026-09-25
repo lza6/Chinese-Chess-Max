@@ -49,7 +49,7 @@ describe("前后端 Tauri 契约", () => {
     );
 
     const srcFiles = listSrc(path.join(root, "src"));
-    const frontendInvoke = matchesToSet(srcFiles, /invoke\(\s*["']([^"']+)["']/g);
+    const frontendInvoke = matchesToSet(srcFiles, /invoke(?:<[^>]*>)?\(\s*["']([^"']+)["']/g);
     const frontendListen = matchesToSet(srcFiles, /\blisten\(\s*["']([^"']+)["']/g);
     const frontendEmit = matchesToSet(srcFiles, /\bemit\(\s*["']([^"']+)["']/g);
 

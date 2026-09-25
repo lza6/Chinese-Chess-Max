@@ -41,7 +41,7 @@ let feEmit = new Set();
 for (const f of frontFiles) {
     if (!/\.(vue|ts|tsx|js|jsx)$/.test(f)) continue;
     const text = fs.readFileSync(f, "utf8");
-    for (const mm of text.matchAll(/invoke\(\s*["']([^"']+)["']/g)) feInvoke.add(mm[1]);
+    for (const mm of text.matchAll(/invoke(?:<[^>]*>)?\(\s*["']([^"']+)["']/g)) feInvoke.add(mm[1]);
     for (const mm of text.matchAll(/\blisten\(\s*["']([^"']+)["']/g)) feListen.add(mm[1]);
     for (const mm of text.matchAll(/\bemit\(\s*["']([^"']+)["']/g)) feEmit.add(mm[1]);
 }

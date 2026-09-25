@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
-import { onMounted, ref, h, computed } from "vue";
-import { useDialog } from "naive-ui";
+import { listen } from "@tauri-apps/api/event";
+import { onMounted, onUnmounted, ref, h, computed } from "vue";
+import { useDialog, useMessage } from "naive-ui";
 import {
     NButton,
     NCard,
@@ -20,32 +21,20 @@ import {
     NTag,
     NInput,
     NSwitch,
+    NText,
 } from "naive-ui";
 
 const options = [
-    {
-        label: "连线分析",
-        value: "LinkAnaly",
-        disabled: false,
-    },
-    {
-        label: "连线对战",
-        value: "LinkPlay",
-        disabled: true,
-    },
-    {
-        label: "人机对弈",
-        value: "Offline",
-        disabled: true,
-    },
+    { label: "连线分析", value: "LinkAnaly", disabled: false },
+    { label: "连线对战", value: "LinkPlay", disabled: true },
+    { label: "人机对弈", value: "Offline", disabled: true },
 ];
 
 interface EngineConfig {
     depth: number;
-    time: number;
+    time: number; // 秒（展示/编辑）
     threads: number;
     hash: number;
-    // show_wdl: number;
     chessdb_enabled: boolean;
     chessdb_timeout: number;
 }
@@ -53,25 +42,78 @@ interface EngineConfig {
 const mode = ref(options[0].value);
 
 const config = ref<EngineConfig>({
-    depth: 0,
-    time: 0,
-    threads: 0,
-    hash: 0,
+    depth: 20,
+    time: 5,
+    threads: 4,
+    hash: 64,
     chessdb_enabled: false,
-    chessdb_timeout: 0,
+    chessdb_timeout: 5,
 });
+// 上次成功保存的配置（失败时还原）
+const savedConfig = ref<EngineConfig>({ ...config.value });
 
 const showEngineConfig = ref(false);
 const isEngineRunning = ref(false);
+const listenStatus = ref<"idle" | "running" | "error">("idle");
+const listenError = ref("");
 // 防重复操作：启动/停止中锁按钮
 const isPending = ref(false);
 
+const dialog = useDialog();
+const message = useMessage();
+
+// 宽容解析 listen_state（Rust ListenState lowercase 序列化）
+function parseListenState(payload: unknown): { status: "idle" | "running" | "error"; error?: string } {
+    if (typeof payload === "string") {
+        const lower = payload.toLowerCase();
+        if (lower === "running") return { status: "running" };
+        if (lower === "error") return { status: "error" };
+        return { status: "idle" };
+    }
+    if (payload && typeof payload === "object") {
+        const p = payload as Record<string, unknown>;
+        if (p.error !== undefined || p.Error !== undefined) {
+            return { status: "error", error: String(p.error ?? p.Error) };
+        }
+        if (p.running !== undefined && p.running !== false) return { status: "running" };
+        if (p.idle !== undefined && p.idle !== false) return { status: "idle" };
+        if (p.Running !== undefined) return { status: "running" };
+        if (p.Idle !== undefined) return { status: "idle" };
+    }
+    return { status: "idle" };
+}
+
+let unlistenState: (() => void) | null = null;
+
 onMounted(async () => {
     await getEngineConfig();
+    unlistenState = await listen("listen_state", (event) => {
+        const st = parseListenState(event.payload);
+        listenStatus.value = st.status;
+        if (st.error) listenError.value = st.error;
+        isEngineRunning.value = st.status === "running";
+    });
 });
 
-// 复制局面尚未实现：保留按钮占位并明确标注“开发中”，不提供空函数
-// async function copy_fen() { /* TODO: 需后端暴露 board_fen 或前端缓存局面 */ }
+onUnmounted(() => {
+    unlistenState?.();
+});
+
+// 复制局面（get_current_fen -> 剪贴板）
+async function copyFen() {
+    try {
+        const result = (await invoke("get_current_fen")) as [string, string] | string;
+        const fen = Array.isArray(result) ? result[0] : result;
+        await navigator.clipboard.writeText(fen);
+        message.success("已复制 FEN 局面");
+    } catch (e) {
+        dialog.error({
+            title: "复制失败",
+            content: "复制局面失败: " + String(e),
+            positiveText: "确定",
+        });
+    }
+}
 
 async function stopListen() {
     if (isPending.value) return;
@@ -79,6 +121,7 @@ async function stopListen() {
     try {
         await invoke("stop_listen");
         isEngineRunning.value = false;
+        listenStatus.value = "idle";
     } catch (e) {
         console.error("停止监听失败:", e);
         dialog.error({
@@ -91,7 +134,7 @@ async function stopListen() {
     }
 }
 
-interface Window {
+interface WindowItem {
     id: number;
     title: string;
     app_name: string;
@@ -99,14 +142,11 @@ interface Window {
     height: number;
 }
 
-const dialog = useDialog();
-
 async function startListen() {
     if (isPending.value) return;
     isPending.value = true;
     try {
-        // 获取窗口列表
-        const windows: Window[] = await invoke("list_windows");
+        const windows: WindowItem[] = await invoke("list_windows");
 
         if (windows.length === 0) {
             dialog.warning({
@@ -121,15 +161,26 @@ async function startListen() {
         const selectedWindowId = ref<number | null>(null);
         const searchQuery = ref("");
 
+        // 按标题自然排序 + 搜索过滤
         const filteredWindows = computed(() => {
-            if (!searchQuery.value) return windows;
+            const sorted = [...windows].sort((a, b) =>
+                a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" })
+            );
+            if (!searchQuery.value) return sorted;
             const query = searchQuery.value.toLowerCase();
-            return windows.filter(
+            return sorted.filter(
                 (w) => w.title.toLowerCase().includes(query) || w.app_name.toLowerCase().includes(query)
             );
         });
 
-        // 显示窗口选择对话框
+        // 键盘选择辅助
+        const selectByKey = (e: KeyboardEvent, w: WindowItem) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                selectedWindowId.value = w.id;
+            }
+        };
+
         dialog.info({
             title: "选择要监听的窗口",
             class: "window-select-dialog",
@@ -153,8 +204,13 @@ async function startListen() {
                                               hoverable: true,
                                               size: "small",
                                               bordered: true,
-                                              class: selectedWindowId.value === w.id ? "selected-window" : "",
+                                              tabindex: 0,
+                                              role: "option",
+                                              "aria-selected": selectedWindowId.value === w.id,
+                                              class:
+                                                  selectedWindowId.value === w.id ? "selected-window" : "",
                                               onClick: () => (selectedWindowId.value = w.id),
+                                              onKeydown: (e: KeyboardEvent) => selectByKey(e, w),
                                           },
                                           {
                                               default: () => [
@@ -210,7 +266,7 @@ async function startListen() {
                         content: "请先选择一个窗口",
                         positiveText: "确定",
                     });
-                    return false; // 阻止对话框关闭
+                    return false;
                 }
 
                 const window = windows.find((w) => w.id === selectedWindowId.value);
@@ -218,6 +274,8 @@ async function startListen() {
                     try {
                         await invoke("start_listen", { target: window });
                         isEngineRunning.value = true;
+                        listenStatus.value = "running";
+                        message.success(`已监听: ${window.title}`);
                     } catch (error) {
                         dialog.error({
                             title: "错误",
@@ -242,36 +300,59 @@ async function startListen() {
     }
 }
 
-async function setEngineDepth() {
-    await invoke("set_engine_depth", { depth: config.value.depth });
+// 配置统一保存：本地暂存 -> 批量 invoke -> 反馈/还原
+async function saveEngineConfig() {
+    try {
+        await invoke("set_engine_depth", { depth: config.value.depth });
+        await invoke("set_engine_time", { time: config.value.time });
+        await invoke("set_engine_threads", { num: config.value.threads });
+        await invoke("set_engine_hash", { size: config.value.hash });
+        await invoke("set_chessdb", {
+            enabled: config.value.chessdb_enabled,
+            timeout: config.value.chessdb_timeout,
+        });
+        savedConfig.value = { ...config.value };
+        message.success("配置已保存");
+        showEngineConfig.value = false;
+    } catch (e) {
+        config.value = { ...savedConfig.value };
+        dialog.error({
+            title: "保存失败",
+            content: "配置保存失败，已还原: " + String(e),
+            positiveText: "确定",
+        });
+    }
 }
 
-async function setEngineTime() {
-    // 单位契约：config.value.time 为“秒”，Rust set_engine_time 内部 ×1000 存为 ms
-    await invoke("set_engine_time", { time: config.value.time });
-}
-
-async function setEngineThreads() {
-    await invoke("set_engine_threads", { num: config.value.threads });
-}
-
-async function setEngineHash() {
-    await invoke("set_engine_hash", { size: config.value.hash });
-}
-
-async function setChessdb() {
-    await invoke("set_chessdb", {
-        enabled: config.value.chessdb_enabled,
-        timeout: config.value.chessdb_timeout,
-    });
+// 重载引擎（配置热生效）
+async function reloadEngine() {
+    try {
+        await invoke("reload_engine");
+        message.success("引擎已重载");
+    } catch (e) {
+        dialog.error({
+            title: "重载失败",
+            content: "引擎重载失败: " + String(e),
+            positiveText: "确定",
+        });
+    }
 }
 
 async function getEngineConfig() {
-    let result: EngineConfig = await invoke("get_engine_config");
-    config.value = {
-        ...result,
-        time: Number((result.time / 1000).toFixed(1)),
-    };
+    try {
+        const result: EngineConfig = await invoke("get_engine_config");
+        config.value = {
+            ...result,
+            time: Number((result.time / 1000).toFixed(1)),
+        };
+        savedConfig.value = { ...config.value };
+    } catch (e) {
+        dialog.error({
+            title: "错误",
+            content: "读取引擎配置失败: " + String(e),
+            positiveText: "确定",
+        });
+    }
 }
 
 async function toggleEngine() {
@@ -286,7 +367,7 @@ async function toggleEngine() {
 <template>
     <n-card class="toolbar" :bordered="false" size="small">
         <n-space vertical size="small">
-            <n-flex align="center" justify="space-between">
+            <n-flex align="center" justify="space-between" wrap>
                 <n-select
                     size="small"
                     v-model:value="mode"
@@ -296,7 +377,15 @@ async function toggleEngine() {
                     class="mode-select"
                 />
 
-                <n-space>
+                <n-space align="center">
+                    <n-tag
+                        :type="listenStatus === 'running' ? 'success' : listenStatus === 'error' ? 'error' : 'default'"
+                        size="small"
+                        data-testid="listen-status"
+                    >
+                        {{ listenStatus === "running" ? "运行中" : listenStatus === "error" ? "错误" : "空闲" }}
+                    </n-tag>
+
                     <n-tooltip trigger="hover" placement="bottom">
                         <template #trigger>
                             <n-button
@@ -305,6 +394,8 @@ async function toggleEngine() {
                                 :type="isEngineRunning ? 'error' : 'primary'"
                                 :loading="isPending"
                                 :disabled="isPending"
+                                data-testid="toggle-engine"
+                                aria-label="启动或停止引擎"
                                 @click="toggleEngine"
                             >
                                 {{ isEngineRunning ? "停" : "启" }}
@@ -315,9 +406,16 @@ async function toggleEngine() {
 
                     <n-tooltip trigger="hover" placement="bottom">
                         <template #trigger>
-                            <n-button circle size="small" type="info" @click="showEngineConfig = true"
-                                >配</n-button
+                            <n-button
+                                circle
+                                size="small"
+                                type="info"
+                                data-testid="open-config"
+                                aria-label="引擎配置"
+                                @click="showEngineConfig = true"
                             >
+                                配
+                            </n-button>
                         </template>
                         引擎配置
                     </n-tooltip>
@@ -326,54 +424,76 @@ async function toggleEngine() {
 
                     <n-tooltip trigger="hover" placement="bottom">
                         <template #trigger>
-                            <n-button circle size="small" type="success" disabled>识</n-button>
+                            <n-button
+                                circle
+                                size="small"
+                                type="success"
+                                data-testid="open-image"
+                                aria-label="图片识别（开发中，需模型）"
+                                disabled
+                            >
+                                识
+                            </n-button>
                         </template>
-                        图片识别（开发中）
+                        图片识别（开发中，需模型）
                     </n-tooltip>
 
                     <n-tooltip trigger="hover" placement="bottom">
                         <template #trigger>
-                            <n-button circle size="small" type="warning" disabled>复</n-button>
+                            <n-button
+                                circle
+                                size="small"
+                                type="warning"
+                                data-testid="copy-fen"
+                                aria-label="复制局面 FEN"
+                                @click="copyFen"
+                            >
+                                复
+                            </n-button>
                         </template>
-                        复制局面（开发中）
+                        复制局面
                     </n-tooltip>
                 </n-space>
             </n-flex>
+
+            <n-text v-if="listenStatus === 'idle' && !isEngineRunning" depth="3" class="guide-text">
+                启动引擎后将自动识别棋盘并显示最佳招法
+            </n-text>
+            <n-text v-if="listenStatus === 'error'" type="error" class="guide-text">
+                监听错误: {{ listenError || "识别失败，请检查窗口与模型资源" }}
+            </n-text>
         </n-space>
 
-        <n-drawer v-model:show="showEngineConfig" :width="300" placement="right">
+        <n-drawer v-model:show="showEngineConfig" :width="320" placement="right">
             <n-drawer-content title="引擎配置">
-                <n-form :model="config" label-placement="left" label-width="80">
+                <n-form :model="config" label-placement="left" label-width="90">
                     <n-form-item label="深度">
                         <n-input-number
                             v-model:value="config.depth"
                             button-placement="both"
-                            :min="0"
+                            :min="1"
                             :max="200"
-                            style="width: 120px"
-                            @update:value="setEngineDepth"
+                            style="width: 130px"
                         />
                     </n-form-item>
-                    <n-form-item label="时间">
+                    <n-form-item label="时间(秒)">
                         <n-input-number
                             v-model:value="config.time"
                             button-placement="both"
                             :step="0.5"
                             :precision="1"
-                            :min="0"
+                            :min="0.5"
                             :max="120"
-                            style="width: 120px"
-                            @update:value="setEngineTime"
+                            style="width: 130px"
                         />
                     </n-form-item>
                     <n-form-item label="线程数">
                         <n-input-number
                             v-model:value="config.threads"
                             button-placement="both"
-                            :min="0"
+                            :min="1"
                             :max="64"
-                            style="width: 120px"
-                            @update:value="setEngineThreads"
+                            style="width: 130px"
                         />
                     </n-form-item>
                     <n-form-item label="哈希表(m)">
@@ -382,12 +502,11 @@ async function toggleEngine() {
                             button-placement="both"
                             :min="32"
                             :max="102400"
-                            style="width: 120px"
-                            @update:value="setEngineHash"
+                            style="width: 130px"
                         />
                     </n-form-item>
                     <n-form-item label="启用云库">
-                        <n-switch v-model:value="config.chessdb_enabled" @update:value="setChessdb" />
+                        <n-switch v-model:value="config.chessdb_enabled" />
                     </n-form-item>
                     <n-form-item label="云库超时(s)">
                         <n-input-number
@@ -396,11 +515,16 @@ async function toggleEngine() {
                             :min="1"
                             :max="60"
                             :step="1"
-                            style="width: 120px"
-                            @update:value="setChessdb"
+                            style="width: 130px"
                         />
                     </n-form-item>
                 </n-form>
+                <n-space style="margin-top: 16px" justify="end">
+                    <n-button data-testid="reload-engine" @click="reloadEngine">重载引擎</n-button>
+                    <n-button type="primary" data-testid="save-config" @click="saveEngineConfig">
+                        保存
+                    </n-button>
+                </n-space>
             </n-drawer-content>
         </n-drawer>
     </n-card>
@@ -414,15 +538,21 @@ async function toggleEngine() {
 }
 
 .mode-select {
-    width: 110px;
+    width: 120px;
+}
+
+.guide-text {
+    display: block;
+    font-size: 12px;
+    padding-left: 2px;
 }
 
 :deep(.n-button) {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 36px;
-    height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     transition: all 0.3s;
 }
 
@@ -441,7 +571,7 @@ async function toggleEngine() {
 
 :deep(.window-app) {
     font-size: 12px;
-    color: #999;
+    color: #595959;
     margin-top: 4px;
     display: flex;
     align-items: center;
@@ -451,4 +581,10 @@ async function toggleEngine() {
     border-color: var(--primary-color) !important;
     background-color: rgba(var(--primary-color-rgb), 0.05);
 }
+
+:deep(.n-card:focus-visible) {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
 </style>
+

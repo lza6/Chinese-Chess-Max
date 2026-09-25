@@ -45,3 +45,17 @@ if (!window.requestAnimationFrame) {
 if (!window.cancelAnimationFrame) {
     window.cancelAnimationFrame = (id: number) => clearTimeout(id);
 }
+
+// jsdom 无 Clipboard API，复制局面测试需 stub
+if (!navigator.clipboard) {
+    let clipboardText = "";
+    Object.defineProperty(navigator, "clipboard", {
+        value: {
+            writeText: async (text: string) => {
+                clipboardText = text;
+            },
+            readText: async () => clipboardText,
+        },
+        configurable: true,
+    });
+}

@@ -72,3 +72,8 @@
 
 - 引擎 wait_until 10s 时间预算 + chessdb 瞬态重试 1 次
 - README/SPEC 文档一致性修正
+
+## 最新：2026-09-26 第九轮（v0.2.10）
+
+- 需求矩阵刷新 + A-I 补位检查 + SELF-REVIEW 第七轮反向审判
+- 内部算法路径防御（P/p position unwrap、fen_to_board）

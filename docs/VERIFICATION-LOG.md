@@ -97,3 +97,9 @@
 - chessdb 瞬态失败重试 1 次（200ms 间隔）再降级引擎
 - README 功能矩阵修正（复制局面已实现、补复盘/导出行）；SPEC 版本刷新
 - cargo fmt/clippy/test 14/14 全绿
+
+## 2026-09-26 第九轮（v0.2.10：终局审计硬性产出 + 内部防御）
+- 需求追踪矩阵刷新至 v0.2.9 + A-I 九层补位检查（新增章节）
+- SELF-REVIEW 第七轮反向审判（攻击 v0.2.5-v0.2.9 伪闭环）
+- board_move_chinese P/p 分支 position().unwrap() 兜底；fen_to_board 全防御化
+- cargo fmt/clippy/test 15/15 全绿

@@ -687,7 +687,7 @@ pub fn board_move_chinese(board: [[char; 9]; 10], iccs: &str) -> String {
                         .iter()
                         .position(|&v| v == value)
                         .map(|i| i + 1)
-                        .unwrap();
+                        .unwrap_or(1);
                     chinese.push(verticals[9 - seq]);
                 } else if other_ys.len() > 1 {
                     // 找出当前纵向重叠数量
@@ -743,7 +743,7 @@ pub fn board_move_chinese(board: [[char; 9]; 10], iccs: &str) -> String {
                     let value = mv.from_x * 100 + mv.from_y;
                     other_ys.push(value);
                     other_ys.sort_by(|a, b| b.cmp(a));
-                    let seq = other_ys.iter().position(|&v| v == value).unwrap();
+                    let seq = other_ys.iter().position(|&v| v == value).unwrap_or(0);
                     chinese.push(verticals[seq]);
                 } else if other_ys.len() > 1 {
                     // 找出当前纵向重叠数量
@@ -783,9 +783,10 @@ pub fn board_move_chinese(board: [[char; 9]; 10], iccs: &str) -> String {
 }
 
 #[allow(dead_code)]
+/// 解析 FEN 到棋盘；非法 FEN 尽力容忍（不 panic），越界字符跳过。
 pub fn fen_to_board(mut fen: &str) -> [[char; 9]; 10] {
     if fen.contains(' ') {
-        fen = fen.split_once(' ').unwrap().0
+        fen = fen.split_once(' ').map(|(board, _)| board).unwrap_or(fen);
     }
     let mut board = [[' '; 9]; 10];
     let mut rank = 0;
@@ -793,15 +794,22 @@ pub fn fen_to_board(mut fen: &str) -> [[char; 9]; 10] {
     for c in fen.chars() {
         match c {
             '1'..='9' => {
-                file += c.to_digit(10).unwrap() as usize;
+                if let Some(d) = c.to_digit(10) {
+                    file += d as usize;
+                }
             }
             '/' => {
                 rank += 1;
                 file = 0;
+                if rank >= 10 {
+                    break;
+                }
             }
             _ => {
-                board[rank][file] = c;
-                file += 1;
+                if rank < 10 && file < 9 {
+                    board[rank][file] = c;
+                    file += 1;
+                }
             }
         }
     }
@@ -1003,4 +1011,20 @@ mod tests {
         assert_eq!(rebuilt.to, "e4");
         assert_eq!(rebuilt.piece, 'P');
     }
+
+    #[test]
+    fn test_fen_to_board_tolerates_malformed_without_panic() {
+        // 非法/畸形 FEN：必须不 panic（防御性）
+        let _ = fen_to_board("");                  // 空
+        let _ = fen_to_board("rnbakabnr/9");       // 缺行
+        let _ = fen_to_board("aaaaaaaaaaaaaaaaaaaa"); // 无斜杠超长
+        let _ = fen_to_board("z".repeat(20).as_str()); // 越界文件
+        let _ = fen_to_board("rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - -"); // 含附加字段
+        // 合法 FEN 仍正确解析
+        let b = fen_to_board("rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w");
+        assert_eq!(b[0][0], 'r');
+        assert_eq!(b[9][0], 'R');
+    }
 }
+
+

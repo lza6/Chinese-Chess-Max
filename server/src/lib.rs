@@ -6,6 +6,7 @@ use std::thread;
 
 use engine::Engine;
 use tauri::Manager as _;
+use worker::GameHistory;
 
 mod chess;
 mod common;
@@ -21,6 +22,7 @@ struct SharedState {
     config: Arc<RwLock<config::Config>>,
     engine: Arc<Mutex<Engine>>,
     listen_thread: Mutex<Option<thread::JoinHandle<()>>>,
+    history: Mutex<GameHistory>,
 }
 
 static SHARED_STATE: OnceLock<SharedState> = OnceLock::new();
@@ -37,15 +39,23 @@ pub fn run() {
                     .path()
                     .resolve("../libs/pikafish", tauri::path::BaseDirectory::Resource)
                     .unwrap();
-                let mut engine = engine::Engine::new(&lib_path);
-                engine.set_show_wdl(config.engine.show_wdl);
-                engine.set_hash(config.engine.hash);
-                engine.set_threads(config.engine.threads);
+                let mut engine = engine::Engine::new(&lib_path)
+                    .expect("引擎初始化失败（检查 libs/pikafish 资源与 pikafish.nnue）");
+                engine
+                    .set_show_wdl(config.engine.show_wdl)
+                    .expect("引擎 setoption show_wdl 失败");
+                engine
+                    .set_hash(config.engine.hash)
+                    .expect("引擎 setoption hash 失败");
+                engine
+                    .set_threads(config.engine.threads)
+                    .expect("引擎 setoption threads 失败");
 
                 SharedState {
                     config: Arc::new(RwLock::new(config)),
                     engine: Arc::new(Mutex::new(engine)),
                     listen_thread: Mutex::new(None),
+                    history: Mutex::new(GameHistory::default()),
                 }
             });
 
@@ -63,6 +73,12 @@ pub fn run() {
             config::set_engine_threads,
             config::set_engine_hash,
             config::set_chessdb,
+            worker::get_current_fen,
+            worker::export_game,
+            worker::load_history,
+            worker::clear_history,
+            worker::review_step,
+            worker::human_move,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -80,5 +96,6 @@ fn reload_engine(app: tauri::AppHandle) {
         .engine
         .lock()
         .unwrap()
-        .reload(&lib_path, &engine_config);
+        .reload(&lib_path, &engine_config)
+        .expect("引擎重载失败");
 }

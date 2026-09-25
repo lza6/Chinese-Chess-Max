@@ -57,6 +57,13 @@ impl Camp {
     pub fn is_black(&self) -> bool {
         Camp::Black.eq(self)
     }
+
+    pub fn from_char(c: char) -> Self {
+        match c {
+            'b' => Camp::Black,
+            _ => Camp::Red,
+        }
+    }
 }
 
 const BLACK_VERTICALS: [char; 9] = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];

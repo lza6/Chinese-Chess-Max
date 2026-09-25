@@ -66,13 +66,23 @@ unsafe impl Send for Engine {}
 unsafe impl Sync for Engine {}
 
 impl Engine {
-    pub fn new(libs: &Path) -> Self {
-        let mut child = command::new(libs);
+    pub fn new(libs: &Path) -> Result<Self, String> {
+        let mut child = command::new(libs).map_err(|e| format!("引擎启动失败: {e}"))?;
 
         let nnue = libs.join("pikafish.nnue");
 
-        let stdin = Box::new(child.stdin.take().unwrap());
-        let stdout = Box::new(BufReader::new(child.stdout.take().unwrap()));
+        let stdin = Box::new(
+            child
+                .stdin
+                .take()
+                .ok_or_else(|| "引擎 stdin 不可用".to_string())?,
+        );
+        let stdout = Box::new(BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or_else(|| "引擎 stdout 不可用".to_string())?,
+        ));
 
         let mut eng = Engine {
             stdin,
@@ -80,18 +90,21 @@ impl Engine {
             child,
         };
         // UCI 握手：等 uciok，避免未就绪就 setoption/搜索
-        eng.write_command("uci");
-        eng.wait_until("uciok", "uci 初始化");
-        eng.setoption("EvalFile", nnue.display());
-        eng.setoption("Sixty Move Rule", false);
-        eng.isready();
-        eng
+        eng.write_command("uci")?;
+        eng.wait_until("uciok", "uci 初始化")
+            .ok_or_else(|| "引擎 UCI 初始化超时或已退出".to_string())?;
+        eng.setoption("EvalFile", nnue.display())?;
+        eng.setoption("Sixty Move Rule", false)?;
+        eng.isready()?;
+        Ok(eng)
     }
 
     /// 发送 isready 并等待 readyok（同步引擎就绪）
-    fn isready(&mut self) {
-        self.write_command("isready");
-        self.wait_until("readyok", "isready");
+    fn isready(&mut self) -> Result<(), String> {
+        self.write_command("isready")?;
+        self.wait_until("readyok", "isready")
+            .ok_or_else(|| "引擎 isready 超时或已退出".to_string())?;
+        Ok(())
     }
 
     /// 读取输出直到出现目标关键字；EOF 时返回 None
@@ -117,39 +130,43 @@ impl Engine {
         }
     }
 
-    pub fn reload(&mut self, libs: &Path, config: &EngineConfig) {
+    pub fn reload(&mut self, libs: &Path, config: &EngineConfig) -> Result<(), String> {
         let _ = self.child.kill();
         let _ = self.child.wait();
-        *self = Self::new(libs);
-        self.set_hash(config.hash);
-        self.set_show_wdl(config.show_wdl);
-        self.set_threads(config.threads);
-        self.isready();
+        *self = Self::new(libs)?;
+        self.set_hash(config.hash)?;
+        self.set_show_wdl(config.show_wdl)?;
+        self.set_threads(config.threads)?;
+        self.isready()?;
+        Ok(())
     }
 
-    fn write_command<A: Display>(&mut self, args: A) {
-        writeln!(self.stdin, "{}", args).expect("write command error");
-        self.stdin.flush().expect("write command flush error");
+    fn write_command<A: Display>(&mut self, args: A) -> Result<(), String> {
+        writeln!(self.stdin, "{}", args).map_err(|e| format!("写入引擎命令失败: {e}"))?;
+        self.stdin
+            .flush()
+            .map_err(|e| format!("刷新引擎 stdin 失败: {e}"))?;
         debug!("{}", args);
+        Ok(())
     }
 
-    pub fn set_show_wdl(&mut self, open: bool) {
-        self.setoption("UCI_ShowWDL", open);
+    pub fn set_show_wdl(&mut self, open: bool) -> Result<(), String> {
+        self.setoption("UCI_ShowWDL", open)
     }
 
-    pub fn set_threads(&mut self, num: usize) {
-        self.setoption("Threads", num);
+    pub fn set_threads(&mut self, num: usize) -> Result<(), String> {
+        self.setoption("Threads", num)
     }
 
-    pub fn set_hash(&mut self, size: usize) {
-        self.setoption("Hash", size);
+    pub fn set_hash(&mut self, size: usize) -> Result<(), String> {
+        self.setoption("Hash", size)
     }
 
-    pub fn setoption<T: Display>(&mut self, name: &str, value: T) {
+    pub fn setoption<T: Display>(&mut self, name: &str, value: T) -> Result<(), String> {
         self.write_command(format!("setoption name {} value {}", name, value))
     }
 
-    pub fn position(&mut self, fen: &str) {
+    pub fn position(&mut self, fen: &str) -> Result<(), String> {
         self.write_command(format!("position fen {}", fen))
     }
 
@@ -174,29 +191,37 @@ impl Engine {
         }
     }
 
-    fn parse_line(&self, line: String, result: &mut QueryResult) {
+    fn parse_line(line: String, result: &mut QueryResult) {
         let mut iter = line.split_whitespace();
         result.source = SOURCE_ENGINE.to_string();
         loop {
             if let Some(key) = iter.next() {
                 match key {
                     "depth" => {
-                        result.depth = iter.next().unwrap().parse().unwrap();
+                        if let Some(d) = iter.next() {
+                            result.depth = d.parse().unwrap_or(result.depth);
+                        }
                     }
                     "time" => {
-                        result.time = iter.next().unwrap().parse().unwrap();
+                        if let Some(t) = iter.next() {
+                            result.time = t.parse().unwrap_or(result.time);
+                        }
                     }
-                    "score" => match iter.next().unwrap() {
+                    "score" => match iter.next().unwrap_or("") {
                         "cp" => {
-                            result.score = iter.next().unwrap().parse().unwrap();
+                            if let Some(s) = iter.next() {
+                                result.score = s.parse().unwrap_or(result.score);
+                            }
                         }
                         "mate" => {
-                            let round: isize = iter.next().unwrap().parse().unwrap();
-                            result.score = if round > 0 {
-                                30000 - round
-                            } else {
-                                -(30000 + round)
-                            };
+                            if let Some(round) = iter.next() {
+                                let round: isize = round.parse().unwrap_or(0);
+                                result.score = if round > 0 {
+                                    30000 - round
+                                } else {
+                                    -(30000 + round)
+                                };
+                            }
                         }
                         _ => {}
                     },
@@ -216,7 +241,10 @@ impl Engine {
     }
 
     fn bestmove(&mut self, depth: usize, time: usize) -> String {
-        self.write_command(format!("go depth {} movetime {}", depth, time));
+        if let Err(e) = self.write_command(format!("go depth {} movetime {}", depth, time)) {
+            tracing::error!("bestmove: 写入 go 命令失败: {e}");
+            return String::new();
+        }
         let mut pre_line = String::new();
         loop {
             let Some(line) = self.read_line() else {
@@ -245,9 +273,12 @@ impl Engine {
             QueryState::InvalidBoard => None,
             QueryState::ServerInternalError | QueryState::NotResult => {
                 // 查询云库失败调用引擎
-                self.position(fen);
+                if self.position(fen).is_err() {
+                    tracing::error!("search: position 命令发送失败，跳过本次分析");
+                    return None;
+                }
                 let best_line = self.bestmove(params.depth, params.time);
-                self.parse_line(best_line, &mut result);
+                Self::parse_line(best_line, &mut result);
                 Some(result)
             }
         }
@@ -256,7 +287,7 @@ impl Engine {
 
 impl Drop for Engine {
     fn drop(&mut self) {
-        self.write_command("quit");
+        let _ = self.write_command("quit");
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
@@ -264,32 +295,25 @@ impl Drop for Engine {
 
 #[cfg(test)]
 mod tests {
-
-    use tracing::Level;
-    use tracing::info;
-
     use super::*;
-    use crate::logger;
 
-    #[tokio::test]
-    async fn test_query() {
-        logger::init_tracer(Level::TRACE, &std::path::PathBuf::from("."));
-        let fen = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C2C4/9/RNBAKABNR b";
-        let result = chessdb::query(fen, 10).await;
-        info!("{:?}", result);
+    #[test]
+    fn parse_line_handles_mate_and_missing_fields() {
+        let mut r = QueryResult::default();
+        Engine::parse_line("info depth 12 score mate 3 pv e2e4".to_string(), &mut r);
+        assert_eq!(r.score, 30000 - 3);
+        assert_eq!(r.depth, 12);
+        assert!(r.pvs.iter().any(|p| p == "e2e4"));
     }
 
-    #[tokio::test]
-    async fn test_engine() {
-        logger::init_tracer(Level::TRACE, &std::path::PathBuf::from("."));
-        let fen = "4k4/9/6r2/9/9/9/9/9/4A4/4K4 w";
-        let libs = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../libs/pikafish");
-        let mut eng = Engine::new(&libs);
-        let cfg = EngineConfig {
-            chessdb_enabled: false,
+    #[test]
+    fn parse_line_tolerates_bad_numbers() {
+        let mut r = QueryResult {
+            depth: 7,
             ..Default::default()
         };
-        let records = eng.search(fen, &cfg).await;
-        info!("{:?}", records);
+        Engine::parse_line("info depth xyz score cp abc pv".to_string(), &mut r);
+        assert_eq!(r.depth, 7);
+        assert_eq!(r.score, 0);
     }
 }

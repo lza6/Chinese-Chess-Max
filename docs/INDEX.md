@@ -18,7 +18,14 @@
 - [CI-CD.md](./CI-CD.md) 持续集成 / 持续交付说明
 - [SOP.md](./SOP.md) 从零跑通 → 验证 → 发布 → 回滚 Runbook
 
+## 架构决策记录（ADR）
+- [ADR-0001 识别模型编译期内嵌 + 诚实资源 Gate](./adr/0001-model-embedded-and-honest-gate.md)
+- [ADR-0002 无后端静态架构](./adr/0002-no-backend-static-architecture.md)
+- [ADR-0003 FEN/ICCS 单一事实来源与输入校验](./adr/0003-fen-single-source-of-truth.md)
+- [ADR-0004 前后端 Tauri 契约防漂移](./adr/0004-tauri-contract-drift-prevention.md)
+
 ## 规划与迭代
 - [计划书/下一步改进指南.md](../计划书/下一步改进指南.md) 优化迭代指南（只读规划）
 - [CHANGELOG.md](../CHANGELOG.md) 版本变更记录
 - [workflow_status.md](../workflow_status.md) 终局闭环审计节点台账
+

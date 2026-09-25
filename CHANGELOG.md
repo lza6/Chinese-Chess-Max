@@ -2,6 +2,18 @@
 
 本仓库所有显著变更按时间倒序记录。
 
+## [0.2.8] - 2026-09-26（架构资产 ADR + 部署资源 SOP + 资产改名）
+
+### 架构与文档
+
+- **新增 4 个 ADR**（docs/adr/）：模型编译期内嵌与诚实 gate / 无后端静态架构 / FEN 单一事实来源 / Tauri 契约防漂移
+- **SOP 补「资源获取与放置」章节**：large.onnx / onnxruntime DLL 获取方式与放置路径，缺资源时 Web dist.zip 仍可发布的说明
+- **docs/INDEX.md 补 ADR 区**；`docs/starup.png` → `docs/startup.png`（C8 遗留拼写修正）
+
+### 验证
+
+- 全量门禁重跑（v0.2.7 修复回归确认）：cargo fmt/clippy/test 14/14；pnpm lint/typecheck/test 24/24/build/e2e 6/6；契约 16/15/6 全绿
+
 ## [0.2.7] - 2026-09-26（终局闭环总审计：P0 输入校验 + FEN 数据正确性 + 崩溃面根治）
 
 ### 修复（P0/P1，真实终局审计发现）

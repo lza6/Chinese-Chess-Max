@@ -84,3 +84,10 @@
 - 前端：clear_history 接入 + clipboard 降级 + 复盘显示一致性
 - 验收：cargo fmt/clippy/test 14/14；pnpm lint/typecheck/test 24/24/build/e2e 6/6；契约 16/15/6
 - 版本 0.2.6 → 0.2.7
+
+## 2026-09-26 第七轮（v0.2.8：架构资产 + 部署资源 SOP + 回归确认）
+- 新增 docs/adr/ 4 个 ADR（模型 gate / 无后端架构 / FEN 单一事实 / 契约防漂移）
+- docs/SOP.md 补「资源获取与放置」（large.onnx / onnxruntime 获取路径 + 放置说明）
+- docs/starup.png → startup.png（C8 拼写修正）
+- 全量回归确认 v0.2.7 修复无回归：cargo 14/14、前端 24/24、E2E 6/6、契约 16/15/6
+- 版本 0.2.7 → 0.2.8

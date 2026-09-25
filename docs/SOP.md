@@ -24,6 +24,20 @@ cd server && cargo fmt --check
 # 缺 libs/large.onnx 时，cargo clippy/check 会 gate 跳过（见 CI notice）
 ```
 
+## 2.5 资源获取与放置（桌面完整版必需）
+
+桌面完整版（识别 + 安装包）依赖以下资源，Web 静态构建（dist.zip）不依赖它们：
+
+| 资源 | 放置路径 | 获取方式 | 缺省后果 |
+|---|---|---|---|
+| YOLOv8 识别模型 | `libs/large.onnx` | 官方/自训棋盘识别模型（约 40-50MB），用户自备；**请勿提交占位文件冒充** | Rust 编译/识别链路 gate 跳过；安装包不产出 |
+| onnxruntime 运行库 | `libs/windows-cpu/*.dll`、`libs/windows-gpu/*.dll`、`libs/linux/libonnxruntime*.so` | 官方 onnxruntime release（<https://github.com/microsoft/onnxruntime/releases>），按 OS/架构/EP 选包解压到对应目录 | MSI/deb 打包步骤自动跳过（`::notice::` 提示） |
+| Pikafish 引擎 | `libs/pikafish/pikafish-{windows,os,linux}` + `pikafish.nnue` | 已随仓库入库（Windows 官方 2026-09-06 版） | — |
+
+放置后：
+- `scripts/ci/check-resources.*` 本地跑通（exit 0）即资源齐备；
+- 推送 main 触发 Release，CI 自动启用安装包构建；缺资源时仍发布 Web `dist.zip`（诚实 gate，非失败）。
+
 ## 3. 本地运行
 ```bash
 pnpm dev                      # Web 开发（Tauri 固定 1420）

@@ -93,6 +93,23 @@ describe("Toolbar", () => {
         });
     });
 
+    it("引擎运行中保存配置提示需重载", async () => {
+        const wrapper = mountWithDialog(Toolbar);
+        await flushPromises();
+        // 模拟运行中：触发 listen_state running
+        const stateHandler = listeners["listen_state"]?.at(-1);
+        await stateHandler({ payload: "running" });
+        await flushPromises();
+        await wrapper.find('[data-testid="open-config"]').trigger("click");
+        await flushPromises();
+        const saveBtn = document.body.querySelector('[data-testid="save-config"]');
+        (saveBtn as HTMLElement).click();
+        await flushPromises();
+        // 运行中保存后：抽屉不关闭 + 出现「需重载」提示
+        expect(invoke).toHaveBeenCalledWith("set_engine_depth", { depth: expect.any(Number) });
+        expect(document.body.textContent).toContain("重载引擎");
+    });
+
     it("重载引擎按钮调用 reload_engine", async () => {
         const wrapper = mountWithDialog(Toolbar);
         await flushPromises();

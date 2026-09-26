@@ -324,8 +324,13 @@ async function saveEngineConfig() {
             timeout: config.value.chessdb_timeout,
         });
         savedConfig.value = { ...config.value };
-        message.success("配置已保存");
-        showEngineConfig.value = false;
+        if (isEngineRunning.value) {
+            // 引擎运行中：提示需重载生效，抽屉保留以便一键重载
+            message.info("配置已保存，正在监听中——点「重载引擎」后新参数才生效");
+        } else {
+            message.success("配置已保存");
+            showEngineConfig.value = false;
+        }
     } catch (e) {
         config.value = { ...savedConfig.value };
         dialog.error({
@@ -599,5 +604,6 @@ async function toggleEngine() {
     outline-offset: 2px;
 }
 </style>
+
 
 

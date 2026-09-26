@@ -2,6 +2,17 @@
 
 本仓库所有显著变更按时间倒序记录。
 
+## [0.2.15] - 2026-09-26（终局审计：reviewTotal 死代码清理）
+
+### 前端（死代码清理）
+
+- **删除 reviewTotal 死状态**：v0.2.7 起复盘显示已用 `history.length`，`reviewTotal` 只写不读（3 处赋值无读取）——已删，onReviewState 保留 index/fen 处理
+- 构建 gzip 130.12KB → 130.10KB
+
+### 验证
+
+- 前端 27 测试 + build + E2E 6/6；后端 cargo 19/19 全绿
+
 ## [0.2.14] - 2026-09-26（终局审计：移除 mode 假功能下拉 + GameHistory 数据单测）
 
 ### 前端（消除假功能）

@@ -94,7 +94,6 @@ async function onAnalyse(event: { payload: Analyse }) {
 // 复盘状态
 const history = ref<HistoryEntry[]>([]);
 const reviewIndex = ref(0);
-const reviewTotal = ref(0);
 const reviewFen = ref('');
 const exportPath = ref('');
 const reviewError = ref('');
@@ -104,7 +103,6 @@ async function clearHistory() {
         await invoke('clear_history');
         history.value = [];
         reviewIndex.value = 0;
-        reviewTotal.value = 0;
         reviewFen.value = '';
     } catch (e) {
         console.error('清空历史失败:', e);
@@ -144,7 +142,6 @@ function reviewNext() {
 
 function onReviewState(event: { payload: { index: number; total: number; fen: string } }) {
     reviewIndex.value = event.payload.index;
-    reviewTotal.value = event.payload.total;
     reviewFen.value = event.payload.fen;
 }
 

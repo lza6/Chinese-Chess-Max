@@ -1,6 +1,6 @@
 [package]
 name = "xqlink"
-version = "0.2.14"
+version = "0.2.15"
 description = "中国象棋学习助手（Chinese-Chess-Max）"
 authors = ["lza6"]
 edition = "2024"
@@ -60,6 +60,7 @@ lto = true
 panic = "abort"
 opt-level = "s"
 strip = true
+
 
 
 

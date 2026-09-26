@@ -10,7 +10,6 @@ import {
     NForm,
     NFormItem,
     NInputNumber,
-    NSelect,
     NDrawer,
     NDrawerContent,
     NSpace,
@@ -24,12 +23,6 @@ import {
     NText,
 } from "naive-ui";
 
-const options = [
-    { label: "连线分析", value: "LinkAnaly", disabled: false },
-    { label: "连线对战", value: "LinkPlay", disabled: true },
-    { label: "人机对弈", value: "Offline", disabled: true },
-];
-
 interface EngineConfig {
     depth: number;
     time: number; // 秒（展示/编辑）
@@ -39,7 +32,6 @@ interface EngineConfig {
     chessdb_timeout: number;
 }
 
-const mode = ref(options[0].value);
 
 const config = ref<EngineConfig>({
     depth: 20,
@@ -385,14 +377,7 @@ async function toggleEngine() {
     <n-card class="toolbar" :bordered="false" size="small">
         <n-space vertical size="small">
             <n-flex align="center" justify="space-between" wrap>
-                <n-select
-                    size="small"
-                    v-model:value="mode"
-                    :options="options"
-                    :consistent-menu-width="false"
-                    placeholder="选择模式"
-                    class="mode-select"
-                />
+                <n-text strong class="mode-label">连线分析</n-text>
 
                 <n-space align="center">
                     <n-tag

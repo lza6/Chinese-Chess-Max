@@ -775,3 +775,74 @@ mod chrono {
             .as_secs()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(
+        from: &str,
+        to: &str,
+        camp: char,
+        fen: &str,
+    ) -> (String, String, char, char, String, String, String) {
+        (
+            from.to_string(),
+            to.to_string(),
+            'P',
+            camp,
+            format!("{from}{to}"),
+            fen.to_string(),
+            "human".to_string(),
+        )
+    }
+
+    #[test]
+    fn game_history_push_updates_current_fen() {
+        let mut h = GameHistory::default();
+        let (f, t, p, c, i, fen, src) = entry("e3", "e4", 'w', "fen-after-1");
+        h.push(f, t, p, c, i, fen, src);
+        assert_eq!(h.entries.len(), 1);
+        assert_eq!(h.entries[0].seq, 1);
+        assert_eq!(h.entries[0].fen, "fen-after-1");
+        assert_eq!(h.current_fen, "fen-after-1");
+        assert_eq!(h.current_camp, "w");
+    }
+
+    #[test]
+    fn game_history_push_empty_fen_keeps_previous_current() {
+        let mut h = GameHistory::default();
+        let (f, t, p, c, i, fen, src) = entry("e3", "e4", 'w', "fen-1");
+        h.push(f, t, p, c, i, fen, src);
+        let (f2, t2, p2, c2, i2, fen2, src2) = entry("e4", "e5", 'w', "");
+        h.push(f2, t2, p2, c2, i2, fen2, src2);
+        // 空 FEN 不覆盖 current_fen
+        assert_eq!(h.current_fen, "fen-1");
+        assert_eq!(h.entries.len(), 2);
+    }
+
+    #[test]
+    fn game_history_reset_clears_all() {
+        let mut h = GameHistory::default();
+        let (f, t, p, c, i, fen, src) = entry("e3", "e4", 'w', "fen-1");
+        h.push(f, t, p, c, i, fen, src);
+        h.reset();
+        assert!(h.entries.is_empty());
+        assert!(h.current_fen.is_empty());
+        assert_eq!(h.current_camp, "w");
+    }
+
+    #[test]
+    fn game_history_truncates_after_2048() {
+        let mut h = GameHistory::default();
+        for n in 0..2100 {
+            let (f, t, p, c, i, fen, src) =
+                entry(&format!("e{}", n % 9), "e9", 'w', &format!("fen-{n}"));
+            h.push(f, t, p, c, i, fen, src);
+        }
+        assert_eq!(h.entries.len(), 2048);
+        // 截断后保留最新（seq 递增）
+        assert_eq!(h.entries.last().unwrap().fen, "fen-2099");
+        assert_eq!(h.current_fen, "fen-2099");
+    }
+}

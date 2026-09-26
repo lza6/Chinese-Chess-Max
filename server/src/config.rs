@@ -182,3 +182,67 @@ pub async fn set_chessdb(enabled: bool, timeout: Option<u64>) {
     config.save();
     debug!("set_chessdb: {} -> {}", enabled, timeout);
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_base() -> std::path::PathBuf {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        std::env::temp_dir().join(format!(
+            "ccm-config-test-{pid}-{n}",
+            pid = std::process::id()
+        ))
+    }
+
+    #[test]
+    fn load_creates_default_config_when_missing() {
+        let base = temp_base();
+        std::fs::create_dir_all(&base).unwrap();
+        let config = Config::load(&base);
+        // 默认引擎配置
+        assert_eq!(config.engine.depth, 20);
+        assert_eq!(config.engine.time, 5000);
+        assert_eq!(config.engine.threads, 4);
+        assert_eq!(config.engine.hash, 64);
+        assert!(config.engine.chessdb_enabled);
+        // 配置文件已创建
+        assert!(base.join("xqlink/config.json").exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn save_then_load_roundtrip_preserves_config() {
+        let base = temp_base();
+        std::fs::create_dir_all(&base).unwrap();
+        let mut config = Config::load(&base);
+        config.engine.depth = 30;
+        config.engine.time = 8000;
+        config.engine.threads = 8;
+        config.save();
+
+        let reloaded = Config::load(&base);
+        assert_eq!(reloaded.engine.depth, 30);
+        assert_eq!(reloaded.engine.time, 8000);
+        assert_eq!(reloaded.engine.threads, 8);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn load_backs_up_corrupted_config_and_rebuilds_default() {
+        let base = temp_base();
+        std::fs::create_dir_all(&base).unwrap();
+        let dir = base.join("xqlink");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("config.json"), "{ corrupted json !!").unwrap();
+
+        let config = Config::load(&base);
+        // 备份存在 + 默认重建
+        assert!(dir.join("config.json.bak").exists());
+        assert_eq!(config.engine.depth, 20);
+        // 新配置可解析
+        let reloaded = Config::load(&base);
+        assert_eq!(reloaded.engine.depth, 20);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+}

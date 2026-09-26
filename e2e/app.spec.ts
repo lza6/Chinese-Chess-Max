@@ -162,6 +162,20 @@ test.describe("中国象棋Max 前端 E2E（Tauri 桥 mock，真实浏览器）"
         expect(overflow).toBeLessThanOrEqual(1);
     });
 
+    test("错误反馈：复盘跳步失败显示可见错误", async ({ page }) => {
+        // 定制 mock：review_step 失败，其余复用 MOCK
+        const failMock = MOCK.replace(
+            'case "review_step":',
+            'case "review_step": return Promise.reject(new Error("index 越界")); case "clear_history":',
+        );
+        await page.addInitScript(failMock as any);
+        await page.goto("/");
+        await expect(page.locator("#chessboard")).toBeVisible();
+        // 触发下一步（review_step 失败）
+        await page.locator('[data-testid="review-next"]').click();
+        await expect(page.locator('[data-testid="review-error"]')).toContainText("复盘跳步失败");
+    });
+
     test("响应式：390×844 移动端无横向滚动", async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await gotoApp(page);

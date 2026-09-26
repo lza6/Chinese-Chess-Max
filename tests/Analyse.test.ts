@@ -137,6 +137,16 @@ describe("Analyse", () => {
         expect(wrapper.text()).toContain("复盘跳步失败");
     });
 
+    it("清空历史失败显示可见错误", async () => {
+        const wrapper = mount(Analyse);
+        await flushPromises();
+        invoke.mockRejectedValueOnce(new Error("清空失败"));
+        await wrapper.find('[data-testid="clear-history"]').trigger("click");
+        await flushPromises();
+        expect(wrapper.find('[data-testid="review-error"]').exists()).toBe(true);
+        expect(wrapper.text()).toContain("清空历史失败");
+    });
+
     it("导出按钮调用 export_game 并显示路径", async () => {
         const wrapper = mount(Analyse);
         await flushPromises();

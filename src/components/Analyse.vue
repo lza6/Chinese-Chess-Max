@@ -108,6 +108,7 @@ async function clearHistory() {
         reviewFen.value = '';
     } catch (e) {
         console.error('清空历史失败:', e);
+        reviewError.value = '清空历史失败: ' + String(e);
     }
 }
 
@@ -116,6 +117,7 @@ async function loadHistory() {
         history.value = await invoke<HistoryEntry[]>('load_history');
     } catch (e) {
         console.error('加载历史失败:', e);
+        reviewError.value = '加载历史失败: ' + String(e);
     }
 }
 
@@ -262,6 +264,7 @@ const logInstRef = ref<LogInst | null>(null);
     font-size: 12px;
 }
 </style>
+
 
 
 

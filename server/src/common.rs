@@ -89,3 +89,75 @@ pub fn detections_to_board(
     }
     Ok((camp, board))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::yolo::Detection;
+
+    fn det(x: f32, y: f32, w: f32, h: f32, label: char) -> Detection {
+        // Detection::new 的 idx 决定 label；LABELS 中 '0' 在 idx=14
+        let idx = match label {
+            '0' => 14,
+            'K' => 10,
+            'k' => 3,
+            'r' => 4,
+            'R' => 7,
+            _ => 0,
+        };
+        Detection::new(x, y, w, h, idx, 0.9)
+    }
+
+    #[test]
+    fn detections_to_board_maps_center_to_cell() {
+        // 棋盘检测（label '0'）必须存在
+        let dets = vec![
+            det(320.0, 320.0, 640.0, 640.0, '0'), // 整盘
+            det(35.5, 35.5, 70.0, 70.0, 'K'),     // 左上角格（col0,row0）
+            det(320.5, 604.5, 70.0, 70.0, 'k'),   // cx=355.5→col4, cy=639.5→row9（满足阵营判定）
+        ];
+        let (camp, board) = detections_to_board(&dets).unwrap();
+        assert_eq!(board[0][0], 'K');
+        assert_eq!(board[9][4], 'k');
+        assert_eq!(camp, chess::Camp::Black); // 右下 k 在 row9 判定黑
+    }
+
+    #[test]
+    fn detections_to_board_rejects_without_board() {
+        let dets = vec![det(35.0, 35.0, 70.0, 70.0, 'K')];
+        assert!(detections_to_board(&dets).is_err());
+    }
+
+    #[test]
+    fn detections_to_board_skips_out_of_range() {
+        // 中心点越界（col>8）的棋子被跳过
+        let dets = vec![
+            det(320.0, 320.0, 640.0, 640.0, '0'),
+            det(670.0, 35.0, 70.0, 70.0, 'R'), // cx=705 → col=9 → 越界跳过
+            det(35.5, 35.5, 70.0, 70.0, 'r'),  // col0,row0
+        ];
+        let (_, board) = detections_to_board(&dets).unwrap();
+        assert_eq!(board[0][0], 'r');
+        // col9 被跳过，不留棋子
+        assert_eq!(board[0][8], ' '); // col9 越界跳过，col8 无棋子
+    }
+
+    #[test]
+    fn detections_bound_computes_crop() {
+        // 原始 1280x720，棋盘居中 label '0'
+        let dets = vec![det(320.0, 320.0, 640.0, 640.0, '0')];
+        let (x, y, w, h) = detections_bound(1280, 720, &dets).unwrap();
+        // 棋盘框 0..640 (模型) → 缩放 x2 到 0..1280, y*1.125 到 0..720
+        // half_cell = 640/9/2≈35.6, 720/10/2=36
+        // crop_x ≈ max(0-35.6,0)=0; crop_y=0; x1p=1280; y1p=720
+        assert_eq!(x, 0);
+        assert_eq!(y, 0);
+        assert!(w > 1200 && w <= 1280);
+        assert!(h > 640 && h <= 720);
+    }
+
+    #[test]
+    fn detections_bound_rejects_without_board() {
+        let dets = vec![det(35.0, 35.0, 70.0, 70.0, 'K')];
+        assert!(detections_bound(1280, 720, &dets).is_err());
+    }
+}

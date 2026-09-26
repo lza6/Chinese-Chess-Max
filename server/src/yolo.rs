@@ -124,7 +124,7 @@ pub struct Detection {
 }
 
 impl Detection {
-    fn new(x: f32, y: f32, w: f32, h: f32, idx: usize, confidence: f32) -> Self {
+    pub(crate) fn new(x: f32, y: f32, w: f32, h: f32, idx: usize, confidence: f32) -> Self {
         Self {
             x0: x - w / 2.0,
             x1: x + w / 2.0,
